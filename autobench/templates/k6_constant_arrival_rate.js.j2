@@ -1,0 +1,15 @@
+{% include 'main.js.j2' %}
+
+export function get_options() {
+    return {
+        scenarios: {
+            load_test: {
+                executor: 'constant-arrival-rate',
+                duration: '{{ duration }}',
+                preAllocatedVUs: {{ pre_allocated_vus }},
+                rate: {{ rate }},
+                timeUnit: '1s',
+            },
+        },
+    };
+}
