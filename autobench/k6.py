@@ -6,8 +6,7 @@ import subprocess
 from jinja2 import Environment, select_autoescape, PackageLoader
 
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "benchmark_data")
-DATA_FILE = "small.json"
+BENCHMARK_DATA_DIR = os.path.join(os.path.dirname(__file__), "benchmark_data")
 
 env = Environment(loader=PackageLoader("autobench"), autoescape=select_autoescape())
 
@@ -50,7 +49,10 @@ class K6Config:
         self._temp_dir = "./k6_tmp"
 
         self.executor.update_variables(
-            host=host, data_file=data_file, data_path=DATA_DIR, temp_dir=self._temp_dir
+            host=host,
+            data_file=data_file,
+            data_path=BENCHMARK_DATA_DIR,
+            temp_dir=self._temp_dir,
         )
 
     def __str__(self):
@@ -124,7 +126,7 @@ class K6Benchmark:
         return f"{self._get_output_dir()}"
 
     def get_results_path(self):
-        return f"{self._get_output_path()}.json"
+        return f"{self._get_output_path()}.results.json"
 
     def get_summary_path(self):
         return f"{self._get_output_path()}.summary.json"
