@@ -90,3 +90,94 @@ class IEDeployment:
 
     def status(self):
         return self.endpoint.status()
+
+
+class IEComputeInstances:
+    """A class representing the IEComputeInstances
+
+    This class provides methods to retrieve and filter compute options from:
+        https://api.endpoints.huggingface.cloud/#get-/v2/provider
+
+    Attributes:
+        options (DataFrame): A DataFrame containing the filtered compute options.
+
+    Methods:
+        get_ie_compute_options: Retrieves the compute options from the IECompute API.
+        nested_json_to_df: Converts nested JSON data to a DataFrame.
+        _filter_options: Filters the compute options based on specific criteria.
+    """
+
+    def __init__(self):
+        self.options = self.get_ie_compute_options()
+
+    def get_ie_compute_options(self):
+        """
+        Retrieves the compute options for the IE (Inference Engine) from a specified URL.
+
+        Returns:
+            pandas.DataFrame or None: A DataFrame containing the compute options for the IE if the request is successful,
+            None otherwise.
+        """
+        url = "https://api.endpoints.huggingface.cloud/v2/provider"
+
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            print(f"An error occurred: {e}")
+            return None
+
+        data = response.json()
+        df = self.nested_json_to_df(data["vendors"])
+        df = self._filter_options(df)
+        return df
+
+    @staticmethod
+    def _nested_json_to_df(data):
+        """
+        Convert nested JSON data to a pandas DataFrame.
+
+        Args:
+            data (list): A list of dictionaries representing the nested JSON data.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with flattened data.
+
+        """
+        flattened_data = []
+        for vendor in data:
+            for region in vendor["regions"]:
+                for compute in region["computes"]:
+                    flattened_data.append(
+                        {
+                            "vendor": vendor["name"],
+                            "vendor_status": vendor["status"],
+                            "region": region["name"],
+                            "region_label": region["label"],
+                            "region_status": region["status"],
+                            **compute,
+                        }
+                    )
+
+        df = pd.DataFrame(flattened_data)
+
+        # Reorder the columns for better readability
+        first_cols = [
+            "vendor",
+            "vendor_status",
+            "region",
+            "region_label",
+            "region_status",
+        ]
+        column_order = first_cols + [col for col in df.columns if col not in first_cols]
+
+        return df[column_order]
+
+    @staticmethod
+    def _filter_options(df):
+        return df[
+            (df["vendor_status"] == "available")
+            & (df["region_status"] == "available")
+            & (df["accelerator"] == "gpu")
+            & (df["status"] == "available")
+        ].reset_index(drop=True)
