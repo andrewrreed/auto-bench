@@ -175,7 +175,23 @@ class ComputeOptionUtil:
         ].to_dict(orient="records")
 
     @staticmethod
-    def get_tgi_config(model_id, gpu_memory, num_gpus):
+    def get_tgi_config(model_id: str, gpu_memory: int, num_gpus: int):
+        """
+        Retrieves a TGI (Text Genereration Inference) configuration for a given model.
+
+        Args:
+            model_id (str): The ID of the model.
+            gpu_memory (int): The amount of GPU memory required for the model.
+            num_gpus (int): The number of GPUs required for the model.
+
+        Returns:
+            dict: The TGI configuration as a dictionary.
+
+        Raises:
+            requests.exceptions.HTTPError: If an HTTP error occurs during the request.
+            requests.exceptions.RequestException: If an error occurs during the request.
+
+        """
         base_url = "https://huggingface.co/api/integrations/tgi/v1/config"
 
         params = {"model_id": model_id, "gpu_memory": gpu_memory, "num_gpus": num_gpus}
