@@ -22,6 +22,7 @@ class TGIConfig:
             "MAX_INPUT_LENGTH": str(self.max_input_length),
             "MAX_TOTAL_TOKENS": str(self.max_total_tokens),
             "NUM_SHARD": str(self.num_shard),
+            "MODEL_ID": "/repository",
         }
         if self.quantize:
             self.env_vars["QUANTIZE"] = self.quantize

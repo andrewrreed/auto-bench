@@ -21,6 +21,7 @@ class IEDeployment:
     def deploy_endpoint(self):
 
         try:
+            print("Creating inference endpoint...")
             endpoint = create_inference_endpoint(
                 self.endpoint_name,
                 repository=self.tgi_config.model_id,
@@ -44,6 +45,8 @@ class IEDeployment:
 
             endpoint.wait()
             self.endpoint = endpoint
+            print(f"Endpoint created successfully: {endpoint.url}")
+
         except Exception as e:
             print(e)
 
