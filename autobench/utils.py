@@ -1,10 +1,9 @@
 import requests
 from typing import Dict, List
+from urllib.parse import urlencode
 from dataclasses import dataclass, field, asdict
 
 import pandas as pd
-
-from recommender.main import get_tgi_config
 
 
 @dataclass
@@ -48,7 +47,7 @@ class ComputeInstanceConfig:
     num_cpus: int
 
 
-class ComputeOptionUtility:
+class ComputeOptionUtil:
     """A class representing the ComputeOptionUtility
 
     This class provides methods to retrieve and filter compute options from:
@@ -74,10 +73,10 @@ class ComputeOptionUtility:
             pandas.DataFrame or None: A DataFrame containing the compute options for the IE if the request is successful,
             None otherwise.
         """
-        url = "https://api.endpoints.huggingface.cloud/v2/provider"
+        base_url = "https://api.endpoints.huggingface.cloud/v2/provider"
 
         try:
-            response = requests.get(url)
+            response = requests.get(base_url)
             response.raise_for_status()
         except requests.RequestException as e:
             print(f"An error occurred: {e}")
@@ -86,6 +85,7 @@ class ComputeOptionUtility:
         data = response.json()
         df = self._nested_json_to_df(data["vendors"])
         df = self._filter_options(df)
+        df = self._clean_df(df)
         return df
 
     @staticmethod
@@ -115,7 +115,10 @@ class ComputeOptionUtility:
                         }
                     )
 
-        df = pd.DataFrame(flattened_data)
+        return pd.DataFrame(flattened_data)
+
+    @staticmethod
+    def _clean_df(df):
 
         # Reorder the columns for better readability + rename some columns
         first_cols = [
@@ -127,7 +130,7 @@ class ComputeOptionUtility:
         ]
         column_order = first_cols + [col for col in df.columns if col not in first_cols]
 
-        return df[column_order].rename(
+        df = df[column_order].rename(
             columns={
                 "numAccelerators": "num_gpus",
                 "memoryGb": "memory_in_gb",
@@ -139,6 +142,11 @@ class ComputeOptionUtility:
             }
         )
 
+        # Fix data types
+        type_map = {"memory_in_gb": int, "gpu_memory_in_gb": int, "num_cpus": int}
+
+        return df.astype(type_map)
+
     @staticmethod
     def _filter_options(df):
         return df[
@@ -148,7 +156,7 @@ class ComputeOptionUtility:
             & (df["status"] == "available")
         ].reset_index(drop=True)
 
-    def get_instance_details(self, vendor: str, region: str, gpu_types: list):
+    def get_instance_details(self, vendor: str, region: str, gpu_types: List[str]):
         """
         Retrieve instance details based on the specified vendor, region, and GPU types.
 
@@ -166,11 +174,49 @@ class ComputeOptionUtility:
             & (self.options["instance_type"].isin(gpu_types))
         ].to_dict(orient="records")
 
-    def get_viable_instance_configs(self, model_id: str, instances: List[Dict]):
+    @staticmethod
+    def get_tgi_config(model_id, gpu_memory, num_gpus):
+        base_url = "https://huggingface.co/api/integrations/tgi/v1/config"
 
+        params = {"model_id": model_id, "gpu_memory": gpu_memory, "num_gpus": num_gpus}
+
+        encoded_params = urlencode(params)
+        url = f"{base_url}?{encoded_params}"
+
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.HTTPError as http_err:
+            error_detail = None
+            if response.text:
+                try:
+                    error_detail = response.json().get("detail")
+                except ValueError:
+                    error_detail = response.textf
+            print(f"HTTP error occurred: {http_err}. Detail: {error_detail}")
+            return None
+        except requests.exceptions.RequestException as err:
+            print(f"An error occurred: {err}")
+            return None
+
+    def get_viable_instance_configs(self, model_id: str, instances: List[Dict]):
+        """
+        Get a list of viable instance configurations for running a specific model.
+
+        Will return one TGI config per instance configuration assuming that instance has enough memory to run the model.
+
+        Args:
+            model_id (str): The ID of the model to be run.
+            instances (List[Dict]): A list of dictionaries representing different instance configurations.
+
+        Returns:
+            List[Dict]: A list of dictionaries containing viable instance configurations along with their corresponding TGI configurations.
+
+        """
         viable_instances = []
         for instance in instances:
-            config = get_tgi_config(
+            config = self.get_tgi_config(
                 model_id,
                 gpu_memory=(
                     instance["gpu_memory_in_gb"] * instance["num_gpus"]
@@ -179,11 +225,11 @@ class ComputeOptionUtility:
             )
             if config:
                 viable_instances.append(
-                    {"tgi_config": asdict(config), "instance_config": instance}
+                    {"tgi_config": config["config"], "instance_config": instance}
                 )
             else:
                 print(
-                    f"Instance {instance['name']} does not have enough memory to run the model: {self.model_id}\nExclude this instance from the benchmark."
+                    f"Instance {instance['id']} does not have enough memory to run the model: {model_id}\nExclude this instance from the benchmark."
                 )
 
         return viable_instances
