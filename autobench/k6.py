@@ -22,7 +22,10 @@ class K6Executor:
 
     def render_script(self):
         template = env.get_template(self.template_name)
-        _, path = tempfile.mkstemp(suffix="k6", prefix="autobench_")
+        _, path = tempfile.mkstemp(
+            prefix="autobench_",
+            suffix="k6_script",
+        )
 
         with open(path, "w") as f:
             rendered_script = template.render(**self.variables)
@@ -46,7 +49,7 @@ class K6Config:
         self.host = host
         self.executor = executor
         self.data_file = data_file
-        self._temp_dir = "./k6_tmp"
+        self._temp_dir = tempfile.mkdtemp(prefix="autobench_", suffix="_k6_results")
 
         self.executor.update_variables(
             host=host,
@@ -81,6 +84,7 @@ class K6Benchmark:
         ):  # read the output of the process, don't buffer on new lines
             print(buffer.decode(), end="")
         self.process.wait()
+        os.makedirs(self._get_output_dir(), exist_ok=True)
         self.add_config_to_summary()
         self.add_config_to_results()
         shutil.rmtree(self.config._temp_dir)
@@ -93,8 +97,6 @@ class K6Benchmark:
                 "executor_type": self.config.executor.name,
                 **self.config.executor.variables,
             }
-            # create directory if it doesn't exist
-            os.makedirs(self._get_output_dir(), exist_ok=True)
             with open(self.get_summary_path(), "w") as f2:
                 json.dump(summary, f2)
 
@@ -110,23 +112,14 @@ class K6Benchmark:
                     **self.config.executor.variables,
                 }
             )
-            # create directory if it doesn't exist
-            os.makedirs(self._get_output_dir(), exist_ok=True)
             with open(self.get_results_path(), "w") as f2:
                 f2.writelines(results)
 
     def _get_output_dir(self):
-        # check if output_dir is relative or absolute
-        if self.output_dir.startswith("/"):
-            return f"{self.output_dir}/{self.config.executor.name}"
-        else:
-            return f"{os.getcwd()}/{self.output_dir}/{self.config.executor.name}"
-
-    def _get_output_path(self):
-        return f"{self._get_output_dir()}"
+        return self.output_dir
 
     def get_results_path(self):
-        return f"{self._get_output_path()}.results.json"
+        return f"{self._get_output_dir()}.results.json"
 
     def get_summary_path(self):
-        return f"{self._get_output_path()}.summary.json"
+        return f"{self._get_output_dir()}.summary.json"
