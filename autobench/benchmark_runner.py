@@ -4,6 +4,7 @@ import shutil
 import tempfile
 import subprocess
 from jinja2 import Environment, select_autoescape, PackageLoader
+from autobench.config import BenchmarkConfig
 
 
 BENCHMARK_DATA_DIR = os.path.join(os.path.dirname(__file__), "benchmark_data")
@@ -44,35 +45,25 @@ class K6ConstantArrivalRateExecutor(K6Executor):
         }
 
 
-class K6Config:
-    def __init__(self, host: str, executor: K6Executor, data_file: str):
-        self.host = host
-        self.executor = executor
-        self.data_file = data_file
-        self._temp_dir = tempfile.mkdtemp(prefix="autobench_", suffix="_k6_results")
+class BenchmarkRunner:
+    def __init__(self, config: BenchmarkConfig, output_dir: str):
+        self.benchmark_config = config
+        self.executor = config.k6_config.executor
+        self.output_dir = output_dir
 
+    def _prepare_benchmark(self):
+        self._temp_dir = tempfile.mkdtemp(prefix="autobench_", suffix="_k6_results")
         self.executor.update_variables(
-            host=host,
-            data_file=data_file,
+            host=self.host,
+            data_file=self.data_file,
             data_path=BENCHMARK_DATA_DIR,
             temp_dir=self._temp_dir,
         )
-
-    def __str__(self):
-        return f"K6Config(url={self.host} executor={self.executor} data_file={self.data_file})"
-
-
-class K6Benchmark:
-    def __init__(self, config: K6Config, output_dir: str):
-        self.config = config
-        self.output_dir = output_dir
-
-    def _prepare_data(self):
-        pass
+        os.makedirs(self.config._temp_dir, exist_ok=True)
+        self.executor.render_script()
 
     def run(self):
-        os.makedirs(self.config._temp_dir, exist_ok=True)
-        self.config.executor.render_script()
+        self._prepare_benchmark()
         args = f"~/.local/bin/k6-sse run --out json={self.config._temp_dir}/results.json {self.config.executor.rendered_file}"
 
         # start a k6 subprocess
