@@ -1,22 +1,17 @@
-import pandas as pd
 from huggingface_hub import create_inference_endpoint, whoami
 
-from autobench.utils import TGIConfig, ComputeInstanceConfig
+from autobench.config import DeploymentConfig
 
 
-class IEDeployment:
+class Deployment:
 
     def __init__(
         self,
-        tgi_config: TGIConfig,
-        instance_config: ComputeInstanceConfig,
+        deployment_config: DeploymentConfig,
     ):
-        self.tgi_config = tgi_config
-        self.instance_config = instance_config
-        # self.endpoint_name = (
-        #     f"{self.tgi_config.model_id.split('/')[1].lower()}-autobench"
-        # )
-        self.endpoint_name = "autobench"
+        self.tgi_config = deployment_config.tgi_config
+        self.instance_config = deployment_config.instance_config
+        self.endpoint_name = deployment_config.deployment_id
 
     def deploy_endpoint(self):
 
