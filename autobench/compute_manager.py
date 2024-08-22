@@ -1,57 +1,15 @@
 import requests
+import pandas as pd
 from typing import Dict, List
 from urllib.parse import urlencode
-from dataclasses import dataclass, field, asdict
 
-import pandas as pd
-
-
-@dataclass
-class TGIConfig:
-    model_id: str
-    max_batch_prefill_tokens: int
-    max_input_length: int
-    max_total_tokens: int
-    num_shard: int
-    quantize: str
-    estimated_memory_in_gigabytes: float
-
-    def __post_init__(self):
-        self.env_vars = {
-            "MAX_BATCH_PREFILL_TOKENS": str(self.max_batch_prefill_tokens),
-            "MAX_INPUT_LENGTH": str(self.max_input_length),
-            "MAX_TOTAL_TOKENS": str(self.max_total_tokens),
-            "NUM_SHARD": str(self.num_shard),
-            "MODEL_ID": "/repository",
-        }
-        if self.quantize:
-            self.env_vars["QUANTIZE"] = self.quantize
+from autobench.config import TGIConfig, ComputeInstanceConfig
 
 
-@dataclass
-class ComputeInstanceConfig:
-    id: str
-    vendor: str
-    vendor_status: str
-    region: str
-    region_label: str
-    region_status: str
-    accelerator: str
-    num_gpus: int
-    memory_in_gb: float
-    gpu_memory_in_gb: float
-    instance_type: str
-    instance_size: str
-    architecture: str
-    status: str
-    price_per_hour: float
-    num_cpus: int
+class ComputeManager:
+    """A class representing the ComputeManager
 
-
-class ComputeOptionUtil:
-    """A class representing the ComputeOptionUtility
-
-    This class provides methods to retrieve and filter compute options from:
+    This class provides methods to retrieve, filter, and validate compute options from:
         https://api.endpoints.huggingface.cloud/#get-/v2/provider
 
     Attributes:
@@ -241,8 +199,10 @@ class ComputeOptionUtil:
                 num_gpus=instance["num_gpus"],
             )
             if config:
+                tgi_config = TGIConfig(**config["config"])
+                instance_config = ComputeInstanceConfig(**instance)
                 viable_instances.append(
-                    {"tgi_config": config["config"], "instance_config": instance}
+                    {"tgi_config": tgi_config, "instance_config": instance_config}
                 )
             else:
                 print(
