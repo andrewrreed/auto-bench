@@ -1,5 +1,5 @@
-from huggingface_hub import create_inference_endpoint, whoami
-
+from huggingface_hub import create_inference_endpoint, whoami, get_inference_endpoint
+from typing import Optional
 from autobench.config import DeploymentConfig
 
 
@@ -8,10 +8,19 @@ class Deployment:
     def __init__(
         self,
         deployment_config: DeploymentConfig,
+        existing_endpoint_name: Optional[str] = None,
     ):
         self.tgi_config = deployment_config.tgi_config
         self.instance_config = deployment_config.instance_config
-        self.endpoint_name = deployment_config.deployment_id
+
+        if existing_endpoint_name:
+            try:
+                self.set_existing_endpoint(existing_endpoint_name)
+            except Exception as e:
+                print(e)
+                raise Exception(f"Endpoint {existing_endpoint_name} not found")
+        else:
+            self.endpoint_name = deployment_config.deployment_id
 
     def deploy_endpoint(self):
 
@@ -44,6 +53,27 @@ class Deployment:
 
         except Exception as e:
             print(e)
+
+    def set_existing_endpoint(self, endpoint_id: str):
+        """
+        Get an existing endpoint by id.
+        If the endpoint is not found, an exception is raised.
+        If endpoint is not running, attempt to start it.
+        """
+        try:
+            self.endpoint = get_inference_endpoint(endpoint_id)
+
+            # TO:DO
+            # self.validate_existing_endpoint()
+
+            if self.endpoint.status != "running":
+                self.endpoint.resume()
+
+            self.endpoint_name = endpoint_id
+
+        except Exception as e:
+            print(e)
+            raise Exception(f"Endpoint {endpoint_id} not found")
 
     def pause_endpoint(self):
         self.endpoint.pause()
