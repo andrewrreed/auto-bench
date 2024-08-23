@@ -1,6 +1,7 @@
 from huggingface_hub import create_inference_endpoint, whoami, get_inference_endpoint
 from typing import Optional
 from autobench.config import DeploymentConfig
+import time
 
 
 class Deployment:
@@ -10,6 +11,7 @@ class Deployment:
         deployment_config: DeploymentConfig,
         existing_endpoint_name: Optional[str] = None,
     ):
+        self.deployment_config = deployment_config
         self.tgi_config = deployment_config.tgi_config
         self.instance_config = deployment_config.instance_config
 
@@ -67,22 +69,12 @@ class Deployment:
             # self.validate_existing_endpoint()
 
             if self.endpoint.status != "running":
-                self.endpoint.resume()
+                self.endpoint.resume().wait()
+                print(f"Endpoint {endpoint_id} is running")
 
             self.endpoint_name = endpoint_id
+            self.deployment_config.deployment_id = endpoint_id
 
         except Exception as e:
             print(e)
             raise Exception(f"Endpoint {endpoint_id} not found")
-
-    def pause_endpoint(self):
-        self.endpoint.pause()
-
-    def resume_endpoint(self):
-        self.endpoint.resume()
-
-    def delete_endpoint(self):
-        self.endpoint.delete()
-
-    def status(self):
-        return self.endpoint.status()
