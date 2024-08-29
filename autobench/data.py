@@ -5,11 +5,17 @@ import datasets
 from autobench.config import DataConfig
 
 
-class DataBuilder:
+class BenchmarkDataset:
     def __init__(self, data_config: DataConfig):
         self.data_config = data_config
+        self.file_path = self._adjust_file_path()
 
-        os.makedirs(os.path.dirname(self.data_config.file_path), exist_ok=True)
+        os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
+
+    def _adjust_file_path(self):
+        # Ensure data_file_path is relative to the project root
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return os.path.join(project_root, self.data_config.file_path)
 
     def build_data(self):
         # TODO:
@@ -34,5 +40,5 @@ class DataBuilder:
                 if len(conversations) >= max:
                     break
 
-        with open(self.data_config.file_path, "w") as f:
+        with open(self.file_path, "w") as f:
             json.dump(conversations, f, indent=4)
