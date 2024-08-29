@@ -162,4 +162,5 @@ cython_debug/
 #.idea/
 
 *.DS_Store
-*benchmark_data/
+benchmark_data/
+benchmark_results/
