@@ -1,6 +1,3 @@
-import os
-import uuid
-from typing import Any
 from dataclasses import dataclass
 
 
@@ -57,15 +54,3 @@ class DataConfig:
     dataset_name: str = "Open-Orca/slimorca-deduped-cleaned-corrected"
     dataset_split: str = "train"
     file_path: str = "benchmark_data/data.json"
-
-    # def __post_init__(self):
-    #     # Ensure data_file_path is relative to the project root
-    #     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    #     self.file_path = os.path.join(project_root, self.file_path)
-
-
-# @dataclass
-# class BenchmarkConfig:
-#     deployment_config: DeploymentConfig
-#     data_config: DataConfig
-#     host: str
