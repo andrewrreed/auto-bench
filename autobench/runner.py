@@ -63,8 +63,9 @@ class Scenario:
         self.host = host
         self.executor = executor
         self.data_file = data_file
-        self.scenario_id = "scenario_" + str(uuid.uuid4())
-        self.output_dir = os.path.join(output_dir, self.scenario_id)
+        self.scenario_id = str(uuid.uuid4())
+        self.scenario_name = "scenario_" + self.scenario_id
+        self.output_dir = os.path.join(output_dir, self.scenario_name)
 
         os.makedirs(self.output_dir)
 
@@ -173,7 +174,7 @@ class BenchmarkRunner:
                 host=self.deployment.endpoint.url,
                 executor=executor,
                 data_file=self.benchmark_dataset.file_path,
-                output_dir=os.path.join(RESULTS_DIR, self.deployment.deployment_id),
+                output_dir=os.path.join(RESULTS_DIR, self.deployment.deployment_name),
             )
             scenario.run()
             time.sleep(10)
