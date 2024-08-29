@@ -52,33 +52,25 @@ class DeploymentConfig:
     instance_config: ComputeInstanceConfig
 
     def __post_init__(self):
-        self.deployment_id = str(uuid.uuid4())[:-4]
+        self.deployment_id = str(uuid.uuid4())[
+            :-4
+        ]  # truncated due to IE endpoint naming restrictions
 
 
 @dataclass
 class DataConfig:
     dataset_name: str = "Open-Orca/slimorca-deduped-cleaned-corrected"
     dataset_split: str = "train"
-    data_file_path: str = "benchmark_data/data.json"
+    file_path: str = "benchmark_data/data.json"
 
     def __post_init__(self):
         # Ensure data_file_path is relative to the project root
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.data_file_path = os.path.join(project_root, self.data_file_path)
-
-
-@dataclass
-class K6Config:
-    host: str
-    executor: Any
-    data_file: str
-
-    def __str__(self):
-        return f"K6Config(url={self.host} executor={self.executor} data_file={self.data_file})"
+        self.file_path = os.path.join(project_root, self.file_path)
 
 
 @dataclass
 class BenchmarkConfig:
     deployment_config: DeploymentConfig
     data_config: DataConfig
-    k6_config: K6Config
+    host: str

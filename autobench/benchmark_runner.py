@@ -1,13 +1,14 @@
 import os
+import uuid
 import json
-import shutil
 import tempfile
 import subprocess
+import shutil
 from jinja2 import Environment, select_autoescape, PackageLoader
 from autobench.config import BenchmarkConfig
 
-
 BENCHMARK_DATA_DIR = os.path.join(os.path.dirname(__file__), "benchmark_data")
+RESULTS_DIR = os.path.join(os.path.dirname(__file__), "benchmark_results")
 
 env = Environment(loader=PackageLoader("autobench"), autoescape=select_autoescape())
 
@@ -25,7 +26,7 @@ class K6Executor:
         template = env.get_template(self.template_name)
         _, path = tempfile.mkstemp(
             prefix="autobench_",
-            suffix="k6_script",
+            suffix="_k6_script.js",
         )
 
         with open(path, "w") as f:
@@ -37,7 +38,9 @@ class K6Executor:
 
 class K6ConstantArrivalRateExecutor(K6Executor):
     def __init__(self, pre_allocated_vus: int, rate_per_second: int, duration: str):
-        super().__init__("constant_arrival_rate", "k6_constant_arrival_rate.js.j2")
+        super().__init__(
+            name="constant_arrival_rate", template_name="k6_constant_arrival_rate.js.j2"
+        )
         self.variables = {
             "pre_allocated_vus": pre_allocated_vus,
             "rate": rate_per_second,
@@ -45,28 +48,37 @@ class K6ConstantArrivalRateExecutor(K6Executor):
         }
 
 
-class BenchmarkRunner:
-    def __init__(self, config: BenchmarkConfig, output_dir: str):
-        self.benchmark_config = config
-        self.executor = config.k6_config.executor
-        self.output_dir = output_dir
+class Scenario:
+
+    def __init__(
+        self,
+        host: str,
+        executor: K6Executor,
+        data_file: str,
+    ):
+        self.host = host
+        self.executor = executor
+        self.data_file = data_file
+        self.scenario_id = str(uuid.uuid4())
+        self.output_dir = os.path.join(RESULTS_DIR, self.scenario_id)
+
+        os.makedirs(self.output_dir)
 
     def _prepare_benchmark(self):
-        self._temp_dir = tempfile.mkdtemp(prefix="autobench_", suffix="_k6_results")
         self.executor.update_variables(
             host=self.host,
             data_file=self.data_file,
-            data_path=BENCHMARK_DATA_DIR,
-            temp_dir=self._temp_dir,
+            out_dir=self.output_dir,
         )
-        os.makedirs(self.config._temp_dir, exist_ok=True)
         self.executor.render_script()
 
     def run(self):
+        print(f"Preparing scenario {self.scenario_id}")
         self._prepare_benchmark()
-        args = f"~/.local/bin/k6-sse run --out json={self.config._temp_dir}/results.json {self.config.executor.rendered_file}"
 
         # start a k6 subprocess
+        print(f"Running scenario {self.scenario_id}")
+        args = f"~/.local/bin/k6-sse run --out json={self.output_dir}/results.json {self.executor.rendered_file}"
         self.process = subprocess.Popen(
             args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True
         )
@@ -75,42 +87,57 @@ class BenchmarkRunner:
         ):  # read the output of the process, don't buffer on new lines
             print(buffer.decode(), end="")
         self.process.wait()
-        os.makedirs(self._get_output_dir(), exist_ok=True)
+
+        print(f"Saving scenario {self.scenario_id} results")
         self.add_config_to_summary()
         self.add_config_to_results()
-        shutil.rmtree(self.config._temp_dir)
+        self.save_scenario_details()
+        self.save_scenario_script()
+
+        print(f"Scenario {self.scenario_id} complete")
 
     def add_config_to_summary(self):
-        with open(f"{self.config._temp_dir}/summary.json", "r") as f:
+        summary_path = f"{self.output_dir}/summary.json"
+        with open(summary_path, "r") as f:
             summary = json.load(f)
-            summary["config"] = {
-                "host": self.config.host,
-                "executor_type": self.config.executor.name,
-                **self.config.executor.variables,
-            }
-            with open(self.get_summary_path(), "w") as f2:
-                json.dump(summary, f2)
+
+        summary["config"] = {
+            "host": self.host,
+            "executor_type": self.executor.name,
+            **self.executor.variables,
+        }
+
+        with open(summary_path, "w") as f:
+            json.dump(summary, f)
 
     def add_config_to_results(self):
-        with open(f"{self.config._temp_dir}/summary.json", "r") as f:
+        results_path = f"{self.output_dir}/results.json"
+        with open(results_path, "r") as f:
             results = f.readlines()
             # append the k6 config to the results in jsonlines format
             results += "\n"
             results += json.dumps(
                 {
-                    "host": self.config.host,
-                    "executor_type": self.config.executor.name,
-                    **self.config.executor.variables,
+                    "host": self.host,
+                    "executor_type": self.executor.name,
+                    **self.executor.variables,
                 }
             )
-            with open(self.get_results_path(), "w") as f2:
-                f2.writelines(results)
+        with open(results_path, "w") as f:
+            f.writelines(results)
 
-    def _get_output_dir(self):
-        return self.output_dir
+    def save_scenario_details(self):
+        with open(f"{self.output_dir}/scenario_details.json", "w") as f:
+            scenario_details = {
+                "scenario_id": self.scenario_id,
+                "host": self.host,
+                "executor_type": self.executor.name,
+                **self.executor.variables,
+            }
+            json.dump(scenario_details, f)
 
-    def get_results_path(self):
-        return f"{self._get_output_dir()}.results.json"
+    def save_scenario_script(self):
+        script_path = f"{self.output_dir}/{self.executor.rendered_file.split('/')[-1]}"
+        shutil.copy(self.executor.rendered_file, script_path)
 
-    def get_summary_path(self):
-        return f"{self._get_output_dir()}.summary.json"
+
