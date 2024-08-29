@@ -1,7 +1,8 @@
 from huggingface_hub import create_inference_endpoint, whoami, get_inference_endpoint
 from typing import Optional
+import uuid
+
 from autobench.config import DeploymentConfig
-import time
 
 
 class Deployment:
@@ -22,15 +23,20 @@ class Deployment:
                 print(e)
                 raise Exception(f"Endpoint {existing_endpoint_name} not found")
         else:
-            self.endpoint_name = deployment_config.deployment_id
+            self.deployment_id = str(uuid.uuid4())[
+                :-4
+            ]  # truncated due to IE endpoint naming restrictions
+
             self.deploy_endpoint()
+
+        self.deployment_name = "deployment_" + self.deployment_id
 
     def deploy_endpoint(self):
 
         try:
             print("Creating inference endpoint...")
             endpoint = create_inference_endpoint(
-                self.endpoint_name,
+                self.deployment_id,
                 repository=self.tgi_config.model_id,
                 namespace=whoami()["name"],
                 framework="pytorch",
@@ -82,8 +88,7 @@ class Deployment:
                 self.endpoint.resume().wait()
                 print(f"Endpoint {endpoint_id} is now running")
 
-            self.endpoint_name = endpoint_id
-            self.deployment_config.deployment_id = endpoint_id
+            self.deployment_id = endpoint_id
 
         except Exception as e:
             print(e)
