@@ -4,8 +4,11 @@ import json
 import tempfile
 import subprocess
 import shutil
+import time
 from jinja2 import Environment, select_autoescape, PackageLoader
-from autobench.config import BenchmarkConfig
+
+from autobench.data import BenchmarkDataset
+from autobench.deployment import Deployment
 
 BENCHMARK_DATA_DIR = os.path.join(os.path.dirname(__file__), "benchmark_data")
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "benchmark_results")
@@ -55,12 +58,13 @@ class Scenario:
         host: str,
         executor: K6Executor,
         data_file: str,
+        output_dir: str,
     ):
         self.host = host
         self.executor = executor
         self.data_file = data_file
-        self.scenario_id = str(uuid.uuid4())
-        self.output_dir = os.path.join(RESULTS_DIR, self.scenario_id)
+        self.scenario_id = "scenario_" + str(uuid.uuid4())
+        self.output_dir = os.path.join(output_dir, self.scenario_id)
 
         os.makedirs(self.output_dir)
 
@@ -89,8 +93,8 @@ class Scenario:
         self.process.wait()
 
         print(f"Saving scenario {self.scenario_id} results")
-        self.add_config_to_summary()
-        self.add_config_to_results()
+        # self.add_config_to_summary()
+        # self.add_config_to_results()
         self.save_scenario_details()
         self.save_scenario_script()
 
@@ -141,3 +145,38 @@ class Scenario:
         shutil.copy(self.executor.rendered_file, script_path)
 
 
+class BenchmarkRunner:
+    def __init__(self, deployment: Deployment, benchmark_dataset: BenchmarkDataset):
+        self.deployment = deployment
+        self.benchmark_dataset = benchmark_dataset
+        # self.arrival_rates = self._get_arrival_rates()
+        self.arrival_rates = [1, 10, 20]
+
+    def _get_arrival_rates(self):
+        arrival_rates = list(range(0, 200, 10))
+        arrival_rates[0] = 1
+        arrival_rates.append(200)
+        return arrival_rates
+
+    def run_benchmark(self):
+        """ """
+
+        print(f"Running benchmark for deployment {self.deployment.deployment_id}")
+        for arrival_rate in self.arrival_rates:
+            print(f"Running benchmark for arrival rate {arrival_rate}")
+            executor = K6ConstantArrivalRateExecutor(
+                pre_allocated_vus=50,  # NOTE: should be 2k for full tests
+                rate_per_second=arrival_rate,
+                duration="5s",
+            )
+            scenario = Scenario(
+                host=self.deployment.endpoint.url,
+                executor=executor,
+                data_file=self.benchmark_dataset.file_path,
+                output_dir=os.path.join(RESULTS_DIR, self.deployment.deployment_id),
+            )
+            scenario.run()
+            time.sleep(10)
+            print(f"Benchmark for arrival rate {arrival_rate} complete")
+
+        print(f"Benchmark for deployment {self.deployment.deployment_id} complete")
