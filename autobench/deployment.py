@@ -23,6 +23,7 @@ class Deployment:
                 raise Exception(f"Endpoint {existing_endpoint_name} not found")
         else:
             self.endpoint_name = deployment_config.deployment_id
+            self.deploy_endpoint()
 
     def deploy_endpoint(self):
 
@@ -63,14 +64,24 @@ class Deployment:
         If endpoint is not running, attempt to start it.
         """
         try:
+            print(f"Getting existing endpoint {endpoint_id}")
             self.endpoint = get_inference_endpoint(endpoint_id)
 
-            # TO:DO
+            print(f"Endpoint found: {self.endpoint.url}")
+            print(f"Endpoint status: {self.endpoint.status}")
+
+            # TO-DO: Ensure endpoint config matches deployment config
             # self.validate_existing_endpoint()
 
-            if self.endpoint.status != "running":
+            if self.endpoint.status == "initializing":
+                print(f"Endpoint {endpoint_id} is initializing, waiting...")
+                self.endpoint.wait()
+                print(f"Endpoint {endpoint_id} is now running")
+
+            elif self.endpoint.status != "running":
+                print(f"Endpoint {endpoint_id} is not running, attempting to start")
                 self.endpoint.resume().wait()
-                print(f"Endpoint {endpoint_id} is running")
+                print(f"Endpoint {endpoint_id} is now running")
 
             self.endpoint_name = endpoint_id
             self.deployment_config.deployment_id = endpoint_id
