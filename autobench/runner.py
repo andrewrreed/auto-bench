@@ -5,6 +5,7 @@ import tempfile
 import subprocess
 import shutil
 import time
+from dataclasses import asdict
 from jinja2 import Environment, select_autoescape, PackageLoader
 
 from autobench.data import BenchmarkDataset
@@ -151,7 +152,7 @@ class BenchmarkRunner:
         self.deployment = deployment
         self.benchmark_dataset = benchmark_dataset
         # self.arrival_rates = self._get_arrival_rates()
-        self.arrival_rates = [1, 10, 20]
+        self.arrival_rates = [1, 10]
 
     def _get_arrival_rates(self):
         arrival_rates = list(range(0, 200, 10))
@@ -161,6 +162,8 @@ class BenchmarkRunner:
 
     def run_benchmark(self):
         """ """
+
+        results_dir = os.path.join(RESULTS_DIR, self.deployment.deployment_name)
 
         print(f"Running benchmark for deployment {self.deployment.deployment_id}")
         for arrival_rate in self.arrival_rates:
@@ -174,10 +177,28 @@ class BenchmarkRunner:
                 host=self.deployment.endpoint.url,
                 executor=executor,
                 data_file=self.benchmark_dataset.file_path,
-                output_dir=os.path.join(RESULTS_DIR, self.deployment.deployment_name),
+                output_dir=results_dir,
             )
             scenario.run()
             time.sleep(10)
             print(f"Benchmark for arrival rate {arrival_rate} complete")
+
+        # Save deployment details
+        deployment_details = {
+            "tgi_config": asdict(self.deployment.tgi_config),
+            "instance_config": asdict(self.deployment.instance_config),
+            "deployment": {
+                "deployment_id": self.deployment.deployment_id,
+                "deployment_name": self.deployment.deployment_name,
+                **self.deployment.endpoint.raw,
+            },
+        }
+
+        deployment_details_path = os.path.join(results_dir, "deployment_details.json")
+
+        with open(deployment_details_path, "w") as f:
+            json.dump(deployment_details, f, indent=4)
+
+        print(f"Deployment details saved to {deployment_details_path}")
 
         print(f"Benchmark for deployment {self.deployment.deployment_id} complete")
