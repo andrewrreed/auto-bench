@@ -67,8 +67,7 @@ class Deployment:
             print(f"Getting existing endpoint {endpoint_id}")
             self.endpoint = get_inference_endpoint(endpoint_id)
 
-            print(f"Endpoint found: {self.endpoint.url}")
-            print(f"Endpoint status: {self.endpoint.status}")
+            print(f"Endpoint found.\nEndpoint status: {self.endpoint.status}")
 
             # TO-DO: Ensure endpoint config matches deployment config
             # self.validate_existing_endpoint()
