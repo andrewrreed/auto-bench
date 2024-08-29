@@ -6,7 +6,7 @@ import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.2/index.js';
 
 const host = "{{ host }}";
 const apiKey = __ENV.HF_TOKEN;
-const filePath = "{{ temp_dir }}/summary.json";
+const filePath = "{{ out_dir }}/summary.json";
 
 const endToEndLatency = new Trend('end_to_end_latency', true);
 const requestThroughput = new Counter('request_throughput');
@@ -16,7 +16,7 @@ const interTokenLatency = new Trend('inter_token_latency', true); // is microsec
 const tokensReceived = new Trend('tokens_received');
 
 const max_new_tokens = 200;
-const dataset = JSON.parse(open("{{ data_path }}/{{ data_file }}"))
+const dataset = JSON.parse(open("{{ data_file }}"))
 
 export function handleSummary(data) {
     return {
