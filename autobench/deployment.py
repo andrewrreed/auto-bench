@@ -1,6 +1,6 @@
-from huggingface_hub import create_inference_endpoint, whoami, get_inference_endpoint
-from typing import Optional
 import uuid
+from typing import Optional
+from huggingface_hub import create_inference_endpoint, whoami, get_inference_endpoint
 
 from autobench.config import DeploymentConfig
 

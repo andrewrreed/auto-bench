@@ -148,11 +148,18 @@ class Scenario:
 
 
 class BenchmarkRunner:
+    """
+    TO-DO:
+    - add a benchmark config that specifies the executor type(s) and executor params to test
+    - add a benchmark_id and save out the benchmark run's details to a file inside the deployment's results dir
+
+    """
+
     def __init__(self, deployment: Deployment, benchmark_dataset: BenchmarkDataset):
         self.deployment = deployment
         self.benchmark_dataset = benchmark_dataset
         # self.arrival_rates = self._get_arrival_rates()
-        self.arrival_rates = [1, 10]
+        self.arrival_rates = [1, 10, 50]
 
     def _get_arrival_rates(self):
         arrival_rates = list(range(0, 200, 10))
