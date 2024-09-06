@@ -32,7 +32,6 @@ class Deployment:
                 :-4
             ]  # truncated due to IE endpoint naming restrictions
             logger.info(f"Generated new deployment ID: {self.deployment_id}")
-            self.deploy_endpoint()
 
         self.deployment_name = "deployment_" + self.deployment_id
         logger.info(f"Deployment initialized with name: {self.deployment_name}")

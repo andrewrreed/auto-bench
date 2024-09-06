@@ -1,10 +1,17 @@
-import sys
 import os
 import uuid
 import asyncio
 from typing import List, Dict
-from concurrent.futures import ThreadPoolExecutor
 from loguru import logger
+import json
+from huggingface_hub.errors import InferenceEndpointError
+from huggingface_hub import HfApi
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 from autobench.config import DataConfig, DeploymentConfig
 from autobench.deployment import Deployment
@@ -28,6 +35,7 @@ class Scheduler:
         self.scheduler_id = str(uuid.uuid4())
         self.scheduler_name = f"scheduler_{self.scheduler_id}"
         self.output_dir = os.path.join(output_dir, self.scheduler_name)
+        self.deployment_statuses = []
         logger.info(
             f"Scheduler initialized with {len(viable_instances)} viable instances for namespace: {namespace}"
         )
@@ -57,6 +65,7 @@ class Scheduler:
         await self.update_quota()
         await self.initialize_tasks()
         await self.process_tasks()
+        self.save_deployment_statuses()
 
     async def update_quota(self):
         logger.info("Updating quota information")
@@ -80,12 +89,12 @@ class Scheduler:
                     self.running_tasks.add(task)
                     task.add_done_callback(self.running_tasks.discard)
                     logger.info(
-                        f"Deployed task for instance: {instance['instance_config'].instance_type}"
+                        f"Deployed task for instance: {instance['instance_config'].id}"
                     )
                 else:
                     pending_instances.append(instance)
                     logger.warning(
-                        f"Unable to deploy instance: {instance['instance_config'].instance_type}"
+                        f"Unable to deploy instance: {instance['instance_config'].id}"
                     )
 
             # Put back the instances that couldn't be deployed
@@ -100,11 +109,12 @@ class Scheduler:
             logger.debug("Sleeping for 10 seconds before next check")
 
     def can_deploy(self, instance):
+        instance_id = instance["instance_config"].id
         instance_type = instance["instance_config"].instance_type
         vendor = instance["instance_config"].vendor
         num_gpus_required = instance["instance_config"].num_gpus
         logger.info(
-            f"Checking if can deploy: {vendor} {instance_type} (requires {num_gpus_required} GPUs)"
+            f"Checking if can deploy: {vendor} {instance_id} (requires {num_gpus_required} GPUs)"
         )
 
         for vendor_data in self.quota["vendors"]:
@@ -116,47 +126,115 @@ class Scheduler:
                         )
                         can_deploy = available_gpus >= num_gpus_required
                         logger.info(
-                            f"Deployment possible for {instance_type}: {can_deploy} (Available GPUs: {available_gpus})"
+                            f"Deployment possible for {instance_id}: {can_deploy} (Available GPUs: {available_gpus})"
                         )
                         return can_deploy
-        logger.warning(f"No matching quota found for {vendor} {instance_type}")
+        logger.warning(f"No matching quota found for {vendor} {instance_id}")
         return False
 
     async def deploy_and_benchmark(self, instance):
         logger.info(
-            f"Deploying and benchmarking instance: {instance['instance_config'].instance_type}"
+            f"Deploying and benchmarking instance: {instance['instance_config'].id}"
         )
-        deployment = await asyncio.to_thread(
-            Deployment,
-            DeploymentConfig(
-                tgi_config=instance["tgi_config"],
-                instance_config=instance["instance_config"],
-            ),
-        )
-        runner = BenchmarkRunner(
-            deployment=deployment,
-            benchmark_dataset=self.benchmark_dataset,
-            output_dir=self.output_dir,
-        )
+        deployment_status = {
+            "instance_id": instance["instance_config"].id,
+            "instance_type": instance["instance_config"].instance_type,
+            "status": "failed",
+            "error": None,
+        }
+        deployment = None
 
         try:
-            await asyncio.to_thread(runner.run_benchmark)
-            logger.success(
-                f"Benchmark completed for instance: {instance['instance_config'].instance_type}"
+            # Create Deployment object (this only sets the ID, doesn't deploy)
+            deployment = await asyncio.to_thread(
+                Deployment,
+                DeploymentConfig(
+                    tgi_config=instance["tgi_config"],
+                    instance_config=instance["instance_config"],
+                ),
             )
+
+            # Now deploy the endpoint
+            await asyncio.to_thread(deployment.deploy_endpoint)
+
+            runner = BenchmarkRunner(
+                deployment=deployment,
+                benchmark_dataset=self.benchmark_dataset,
+                output_dir=self.output_dir,
+            )
+
+            benchmark_results = await asyncio.to_thread(runner.run_benchmark)
+            deployment_status["status"] = "success"
+            logger.success(
+                f"Benchmark completed for instance: {instance['instance_config'].id}"
+            )
+
+        except InferenceEndpointError as e:
+            logger.error(
+                f"Deployment failed for instance {instance['instance_config'].id}: {str(e)}"
+            )
+            deployment_status["error"] = str(e)
+
         except Exception as e:
             logger.error(
-                f"Error during benchmark for instance {instance['instance_config'].instance_type}: {str(e)}"
+                f"Error during benchmark for instance {instance['instance_config'].id}: {str(e)}"
             )
+            deployment_status["error"] = str(e)
+
         finally:
-            logger.info(
-                f"Deleting deployment for instance: {instance['instance_config'].instance_type}"
-            )
-            await asyncio.to_thread(deployment.endpoint.delete)
+            if deployment:
+                logger.info(
+                    f"Attempting to delete deployment with ID: {deployment.deployment_id}"
+                )
+                try:
+                    # TODO: Ideally, if endpoint has failed, retrieve container logs somehow and save them to the deployment_status before deleting
+                    await asyncio.sleep(5)
+                    await asyncio.to_thread(
+                        delete_inference_endpoint,
+                        deployment.deployment_id,
+                        self.namespace,
+                    )
+                    logger.success(
+                        f"Deployment deleted for instance: {instance['instance_config'].id}"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Error deleting deployment for instance {instance['instance_config'].id}: {str(e)}"
+                    )
+                    deployment_status["error"] = (
+                        f"{deployment_status['error']}; Error deleting: {str(e)}"
+                        if deployment_status["error"]
+                        else f"Error deleting: {str(e)}"
+                    )
+            else:
+                logger.warning(
+                    f"No deployment object created for instance: {instance['instance_config'].id}"
+                )
+
             await self.update_quota()
-            logger.success(
-                f"Deployment deleted for instance: {instance['instance_config'].instance_type}"
-            )
+            self.deployment_statuses.append(deployment_status)
+
+    def save_deployment_statuses(self):
+        results_file = os.path.join(self.output_dir, "deployment_statuses.json")
+        with open(results_file, "w") as f:
+            json.dump(self.deployment_statuses, f, indent=2)
+        logger.info(f"Deployment results saved to {results_file}")
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_exception_type(Exception),
+    reraise=True,
+)
+def delete_inference_endpoint(endpoint_id: str, namespace: str):
+    api = HfApi()
+    try:
+        api.delete_inference_endpoint(endpoint_id, namespace=namespace)
+        logger.info(f"Successfully deleted endpoint {endpoint_id}")
+    except Exception as e:
+        logger.error(f"Failed to delete endpoint {endpoint_id}: {str(e)}")
+        raise
 
 
 async def run_scheduler_async(viable_instances: List[Dict], namespace: str):
