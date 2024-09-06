@@ -12,7 +12,6 @@ from autobench.data import BenchmarkDataset
 from autobench.deployment import Deployment
 
 BENCHMARK_DATA_DIR = os.path.join(os.path.dirname(__file__), "benchmark_data")
-RESULTS_DIR = os.path.join(os.path.dirname(__file__), "benchmark_results")
 
 env = Environment(loader=PackageLoader("autobench"), autoescape=select_autoescape())
 
@@ -148,11 +147,24 @@ class Scenario:
 
 
 class BenchmarkRunner:
-    def __init__(self, deployment: Deployment, benchmark_dataset: BenchmarkDataset):
+    """
+    TO-DO:
+    - add a benchmark config that specifies the executor type(s) and executor params to test
+    - add a benchmark_id and save out the benchmark run's details to a file inside the deployment's results dir
+
+    """
+
+    def __init__(
+        self,
+        deployment: Deployment,
+        benchmark_dataset: BenchmarkDataset,
+        output_dir: str,
+    ):
         self.deployment = deployment
         self.benchmark_dataset = benchmark_dataset
+        self.output_dir = os.path.join(output_dir, self.deployment.deployment_name)
         # self.arrival_rates = self._get_arrival_rates()
-        self.arrival_rates = [1, 10]
+        self.arrival_rates = [1, 10, 50]
 
     def _get_arrival_rates(self):
         arrival_rates = list(range(0, 200, 10))
@@ -162,8 +174,6 @@ class BenchmarkRunner:
 
     def run_benchmark(self):
         """ """
-
-        results_dir = os.path.join(RESULTS_DIR, self.deployment.deployment_name)
 
         print(f"Running benchmark for deployment {self.deployment.deployment_id}")
         for arrival_rate in self.arrival_rates:
@@ -177,7 +187,7 @@ class BenchmarkRunner:
                 host=self.deployment.endpoint.url,
                 executor=executor,
                 data_file=self.benchmark_dataset.file_path,
-                output_dir=results_dir,
+                output_dir=self.output_dir,
             )
             scenario.run()
             time.sleep(10)
@@ -194,7 +204,9 @@ class BenchmarkRunner:
             },
         }
 
-        deployment_details_path = os.path.join(results_dir, "deployment_details.json")
+        deployment_details_path = os.path.join(
+            self.output_dir, "deployment_details.json"
+        )
 
         with open(deployment_details_path, "w") as f:
             json.dump(deployment_details, f, indent=4)
