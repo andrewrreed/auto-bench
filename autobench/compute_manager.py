@@ -3,9 +3,6 @@ import pandas as pd
 from typing import Dict, List
 from urllib.parse import urlencode
 
-from huggingface_hub.constants import INFERENCE_ENDPOINTS_ENDPOINT
-from huggingface_hub.utils import get_session, hf_raise_for_status, build_hf_headers
-
 from autobench.config import TGIConfig, ComputeInstanceConfig
 
 
@@ -213,22 +210,3 @@ class ComputeManager:
                 )
 
         return viable_instances
-
-    def fetch_quotas(self, namespace: str):
-        """
-        Fetch quotas for a given namespace.
-
-        Args:
-            namespace (str): The namespace to fetch quotas for.
-
-        Returns:
-            dict: The quotas for the given namespace.
-        """
-        session = get_session()
-        response = session.get(
-            f"{INFERENCE_ENDPOINTS_ENDPOINT}/provider/quotas/{namespace}",
-            headers=build_hf_headers(),
-        )
-        hf_raise_for_status(response)
-
-        return response.json()
