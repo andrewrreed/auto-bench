@@ -7,6 +7,7 @@ import shutil
 import time
 from dataclasses import asdict
 from jinja2 import Environment, select_autoescape, PackageLoader
+from loguru import logger
 
 from autobench.data import BenchmarkDataset
 from autobench.deployment import Deployment
@@ -21,9 +22,11 @@ class K6Executor:
         self.name = name
         self.template_name = template_name
         self.variables = {}
+        logger.info(f"Initialized K6Executor: {name} with template: {template_name}")
 
     def update_variables(self, **kwargs):
         self.variables.update(kwargs)
+        logger.debug(f"Updated variables for {self.name}: {kwargs}")
 
     def render_script(self):
         template = env.get_template(self.template_name)
@@ -37,6 +40,7 @@ class K6Executor:
             f.write(rendered_script)
 
         self.rendered_file = path
+        logger.info(f"Rendered K6 script to: {path}")
 
 
 class K6ConstantArrivalRateExecutor(K6Executor):
@@ -68,6 +72,7 @@ class Scenario:
         self.output_dir = os.path.join(output_dir, self.scenario_name)
 
         os.makedirs(self.output_dir)
+        logger.info(f"Initialized Scenario: {self.scenario_id} for host: {host}")
 
     def _prepare_benchmark(self):
         self.executor.update_variables(
@@ -76,74 +81,53 @@ class Scenario:
             out_dir=self.output_dir,
         )
         self.executor.render_script()
+        logger.debug(f"Prepared benchmark for scenario: {self.scenario_id}")
 
     def run(self):
-        print(f"Preparing scenario {self.scenario_id}")
+        logger.info(f"Starting scenario: {self.scenario_id}")
         self._prepare_benchmark()
 
         # start a k6 subprocess
-        print(f"Running scenario {self.scenario_id}")
+        logger.info(f"Running K6 for scenario: {self.scenario_id}")
         args = f"~/.local/bin/k6-sse run --out json={self.output_dir}/results.json {self.executor.rendered_file}"
         self.process = subprocess.Popen(
             args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True
         )
         while buffer := os.read(
-            self.process.stdout.fileno(), 2048
-        ):  # read the output of the process, don't buffer on new lines
-            print(buffer.decode(), end="")
+            self.process.stdout.fileno(),
+            2048,
+            # ):  # read the output of the process, don't buffer on new lines
+            #     print(buffer.decode(), end="")
+        ):
+            logger.debug(buffer.decode().strip())
         self.process.wait()
 
-        print(f"Saving scenario {self.scenario_id} results")
-        # self.add_config_to_summary()
-        # self.add_config_to_results()
+        logger.info(f"Saving results for scenario: {self.scenario_id}")
         self.save_scenario_details()
         self.save_scenario_script()
 
-        print(f"Scenario {self.scenario_id} complete")
-
-    def add_config_to_summary(self):
-        summary_path = f"{self.output_dir}/summary.json"
-        with open(summary_path, "r") as f:
-            summary = json.load(f)
-
-        summary["config"] = {
-            "host": self.host,
-            "executor_type": self.executor.name,
-            **self.executor.variables,
-        }
-
-        with open(summary_path, "w") as f:
-            json.dump(summary, f)
-
-    def add_config_to_results(self):
-        results_path = f"{self.output_dir}/results.json"
-        with open(results_path, "r") as f:
-            results = f.readlines()
-            # append the k6 config to the results in jsonlines format
-            results += "\n"
-            results += json.dumps(
-                {
-                    "host": self.host,
-                    "executor_type": self.executor.name,
-                    **self.executor.variables,
-                }
-            )
-        with open(results_path, "w") as f:
-            f.writelines(results)
+        logger.info(f"Scenario {self.scenario_id} completed")
 
     def save_scenario_details(self):
-        with open(f"{self.output_dir}/scenario_details.json", "w") as f:
+        scenario_details_path = f"{self.output_dir}/scenario_details.json"
+        logger.info(f"Saving scenario details to: {scenario_details_path}")
+        try:
             scenario_details = {
                 "scenario_id": self.scenario_id,
                 "host": self.host,
                 "executor_type": self.executor.name,
                 **self.executor.variables,
             }
-            json.dump(scenario_details, f)
+            with open(scenario_details_path, "w") as f:
+                json.dump(scenario_details, f)
+            logger.debug("Scenario details successfully saved")
+        except Exception as e:
+            logger.error(f"Error saving scenario details: {str(e)}")
 
     def save_scenario_script(self):
         script_path = f"{self.output_dir}/{self.executor.rendered_file.split('/')[-1]}"
         shutil.copy(self.executor.rendered_file, script_path)
+        logger.debug(f"Scenario script saved to: {script_path}")
 
 
 class BenchmarkRunner:
@@ -165,6 +149,9 @@ class BenchmarkRunner:
         self.output_dir = os.path.join(output_dir, self.deployment.deployment_name)
         # self.arrival_rates = self._get_arrival_rates()
         self.arrival_rates = [1, 10, 50]
+        logger.info(
+            f"Initialized BenchmarkRunner for deployment: {deployment.deployment_id}"
+        )
 
     def _get_arrival_rates(self):
         arrival_rates = list(range(0, 200, 10))
@@ -175,9 +162,11 @@ class BenchmarkRunner:
     def run_benchmark(self):
         """ """
 
-        print(f"Running benchmark for deployment {self.deployment.deployment_id}")
+        logger.info(
+            f"Starting benchmark for deployment: {self.deployment.deployment_id}"
+        )
         for arrival_rate in self.arrival_rates:
-            print(f"Running benchmark for arrival rate {arrival_rate}")
+            logger.info(f"Running benchmark for arrival rate: {arrival_rate}")
             executor = K6ConstantArrivalRateExecutor(
                 pre_allocated_vus=50,  # NOTE: should be 2k for full tests
                 rate_per_second=arrival_rate,
@@ -191,7 +180,7 @@ class BenchmarkRunner:
             )
             scenario.run()
             time.sleep(10)
-            print(f"Benchmark for arrival rate {arrival_rate} complete")
+            logger.info(f"Benchmark for arrival rate {arrival_rate} completed")
 
         # Save deployment details
         deployment_details = {
@@ -211,6 +200,7 @@ class BenchmarkRunner:
         with open(deployment_details_path, "w") as f:
             json.dump(deployment_details, f, indent=4)
 
-        print(f"Deployment details saved to {deployment_details_path}")
-
-        print(f"Benchmark for deployment {self.deployment.deployment_id} complete")
+        logger.info(f"Deployment details saved to: {deployment_details_path}")
+        logger.info(
+            f"Benchmark for deployment {self.deployment.deployment_id} completed"
+        )

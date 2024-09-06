@@ -1,3 +1,4 @@
+from loguru import logger
 import requests
 import pandas as pd
 from typing import Dict, List
@@ -22,6 +23,7 @@ class ComputeManager:
     """
 
     def __init__(self):
+        logger.info("Initializing ComputeManager")
         self.options = self.get_ie_compute_options()
 
     def get_ie_compute_options(self):
@@ -33,18 +35,21 @@ class ComputeManager:
             None otherwise.
         """
         base_url = "https://api.endpoints.huggingface.cloud/v2/provider"
+        logger.info(f"Fetching compute options from {base_url}")
 
         try:
             response = requests.get(base_url)
             response.raise_for_status()
         except requests.RequestException as e:
-            print(f"An error occurred: {e}")
+            logger.error(f"Failed to fetch compute options: {e}")
             return None
 
         data = response.json()
+        logger.debug(f"Received {len(data['vendors'])} vendors from the API")
         df = self._nested_json_to_df(data["vendors"])
         df = self._filter_options(df)
         df = self._clean_df(df)
+        logger.info(f"Processed {len(df)} compute options")
         return df
 
     @staticmethod
@@ -74,6 +79,7 @@ class ComputeManager:
                         }
                     )
 
+        logger.debug(f"Flattened {len(flattened_data)} compute options")
         return pd.DataFrame(flattened_data)
 
     @staticmethod
@@ -104,16 +110,21 @@ class ComputeManager:
         # Fix data types
         type_map = {"memory_in_gb": int, "gpu_memory_in_gb": int, "num_cpus": int}
 
+        logger.debug(
+            f"Cleaned DataFrame with {len(df)} rows and {len(df.columns)} columns"
+        )
         return df.astype(type_map)
 
     @staticmethod
     def _filter_options(df):
-        return df[
+        filtered_df = df[
             (df["vendor_status"] == "available")
             & (df["region_status"] == "available")
             & (df["accelerator"] == "gpu")
             & (df["status"] == "available")
         ].reset_index(drop=True)
+        logger.info(f"Filtered {len(filtered_df)} available GPU options")
+        return filtered_df
 
     def get_instance_details(self, vendor: str, region: str, gpu_types: List[str]):
         """
@@ -127,11 +138,15 @@ class ComputeManager:
         Returns:
             list: A list of dictionaries containing the instance details that match the specified criteria.
         """
-        return self.options[
+        result = self.options[
             (self.options["vendor"] == vendor)
             & (self.options["region"] == region)
             & (self.options["instance_type"].isin(gpu_types))
         ].to_dict(orient="records")
+        logger.info(
+            f"Found {len(result)} instances matching criteria: vendor={vendor}, region={region}, gpu_types={gpu_types}"
+        )
+        return result
 
     @staticmethod
     def get_tgi_config(model_id: str, gpu_memory: int, num_gpus: int):
@@ -152,15 +167,17 @@ class ComputeManager:
 
         """
         base_url = "https://huggingface.co/api/integrations/tgi/v1/config"
-
         params = {"model_id": model_id, "gpu_memory": gpu_memory, "num_gpus": num_gpus}
-
         encoded_params = urlencode(params)
         url = f"{base_url}?{encoded_params}"
 
+        logger.info(
+            f"Fetching TGI config for model_id={model_id}, gpu_memory={gpu_memory}, num_gpus={num_gpus}"
+        )
         try:
             response = requests.get(url)
             response.raise_for_status()
+            logger.debug("Successfully retrieved TGI config")
             return response.json()
         except requests.exceptions.HTTPError as http_err:
             error_detail = None
@@ -168,11 +185,13 @@ class ComputeManager:
                 try:
                     error_detail = response.json().get("detail")
                 except ValueError:
-                    error_detail = response.textf
-            print(f"HTTP error occurred: {http_err}. Detail: {error_detail}")
+                    error_detail = response.text
+            logger.error(
+                f"HTTP error occurred while fetching TGI config: {http_err}. Detail: {error_detail}"
+            )
             return None
         except requests.exceptions.RequestException as err:
-            print(f"An error occurred: {err}")
+            logger.error(f"Error occurred while fetching TGI config: {err}")
             return None
 
     def get_viable_instance_configs(self, model_id: str, instances: List[Dict]):
@@ -189,13 +208,12 @@ class ComputeManager:
             List[Dict]: A list of dictionaries containing viable instance configurations along with their corresponding TGI configurations.
 
         """
+        logger.info(f"Finding viable instance configs for model_id={model_id}")
         viable_instances = []
         for instance in instances:
             config = self.get_tgi_config(
                 model_id,
-                gpu_memory=(
-                    instance["gpu_memory_in_gb"] * instance["num_gpus"]
-                ),  # must be total VRAM on instance
+                gpu_memory=(instance["gpu_memory_in_gb"] * instance["num_gpus"]),
                 num_gpus=instance["num_gpus"],
             )
             if config:
@@ -204,9 +222,13 @@ class ComputeManager:
                 viable_instances.append(
                     {"tgi_config": tgi_config, "instance_config": instance_config}
                 )
+                logger.debug(f"Found viable instance: {instance['id']}")
             else:
-                print(
-                    f"Instance {instance['id']} does not have enough memory to run the model: {model_id}\nExclude this instance from the benchmark."
+                logger.warning(
+                    f"Instance {instance['id']} does not have enough memory to run the model: {model_id}. Excluding from benchmark."
                 )
 
+        logger.info(
+            f"Found {len(viable_instances)} viable instances for model_id={model_id}"
+        )
         return viable_instances

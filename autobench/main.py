@@ -2,7 +2,9 @@ from dotenv import load_dotenv
 
 from autobench.compute_manager import ComputeManager
 from autobench.scheduler import run_scheduler
+from autobench.logging_config import setup_logging
 
+setup_logging()
 load_dotenv(override=True)
 
 VENDOR = "aws"
@@ -21,7 +23,7 @@ viable_instances = compute_manager.get_viable_instance_configs(
     model_id=MODEL_ID, instances=possible_instances
 )
 
-viable_instances = viable_instances[:1]
+# viable_instances = viable_instances[:1]
 
 
 run_scheduler(viable_instances, NAMESPACE)
