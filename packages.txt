@@ -1,2 +1,2 @@
-golang-go
+golang-1.21
 git
