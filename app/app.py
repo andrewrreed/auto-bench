@@ -6,28 +6,48 @@ import shutil
 import socket
 
 
-def run_command(command):
+def run_command(command, env=None):
     print(f"Running command: {command}")
     try:
         result = subprocess.run(
-            command, shell=True, check=True, text=True, capture_output=True
+            command, shell=True, check=True, text=True, capture_output=True, env=env
         )
         print(f"Command succeeded: {command}")
         print(f"Output: {result.stdout}")
-        return True
+        return True, result.stdout
     except subprocess.CalledProcessError as e:
         print(f"Command failed: {command}")
         print(f"Error: {e}")
         print(f"Output: {e.stdout}")
         print(f"Error output: {e.stderr}")
-        return False
+        return False, e.stderr
+
+
+def get_go_bin():
+    _, output = run_command("go env GOPATH")
+    gopath = output.strip()
+    if gopath:
+        return os.path.join(gopath, "bin")
+    return None
 
 
 def main():
+
+    # Get the Go bin directory
+    go_bin = get_go_bin()
+    if go_bin:
+        print(f"Found Go bin directory: {go_bin}")
+        # Add Go bin to PATH
+        new_env = os.environ.copy()
+        new_env["PATH"] = f"{go_bin}:{new_env['PATH']}"
+    else:
+        print("Could not find Go bin directory. Using default PATH.")
+        new_env = None
+
     # Run the commands
     commands = [
         "go install go.k6.io/xk6/cmd/xk6@latest",
-        "which xk6",  # Check xk6 installation after it's installed
+        "which xk6",
         "xk6 build --with github.com/phymbert/xk6-sse@0abbe3e94fe104a13021524b1b98d26447a7d182",
         "mkdir -p .bin/",
         "mv k6 .bin/k6",
@@ -35,54 +55,34 @@ def main():
     ]
 
     for command in commands:
-        success = run_command(command)
+        success, _ = run_command(command, env=new_env)
         if not success:
             if "go install" in command:
                 print("Failed to install xk6. Checking Go installation...")
-                run_command("go version")
+                run_command("go version", env=new_env)
                 print("Checking GOPATH...")
-                run_command("echo $GOPATH")
-                break
-            elif "xk6 build" in command:
-                print("xk6 build command failed. Checking xk6 installation...")
-                run_command("which xk6")
+                run_command("go env GOPATH", env=new_env)
+            elif "xk6" in command:
+                print("xk6 command failed. Checking xk6 installation...")
+                run_command("which xk6", env=new_env)
                 print("Checking Go installation...")
-                run_command("go version")
+                run_command("go version", env=new_env)
                 print("Checking GOPATH...")
-                run_command("echo $GOPATH")
-                break
+                run_command("go env GOPATH", env=new_env)
+                print("Listing Go bin directory:")
+                if go_bin:
+                    run_command(f"ls -l {go_bin}", env=new_env)
+            if "mv k6" in command or ".bin/k6" in command:
+                print("Checking if k6 file exists:")
+                run_command("ls -l k6", env=new_env)
+                print("Checking .bin directory:")
+                run_command("ls -l .bin", env=new_env)
 
     print("Script execution completed.")
 
 
-def check_k6_sse():
-    k6_sse_path = os.path.expanduser("~/.local/bin/k6-sse")
-
-    if not os.path.exists(k6_sse_path):
-        print("k6-sse executable not found at ~/.local/bin/k6-sse")
-        return False
-
-    try:
-        result = subprocess.run(
-            [k6_sse_path, "version"], capture_output=True, text=True, check=True
-        )
-        print(f"k6-sse version: {result.stdout.strip()}")
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"Error running k6-sse: {e}")
-        return False
-
-
 # Build k6-sse
 main()
-
-# Check if k6-sse exists and works
-if check_k6_sse():
-    print("k6-sse is installed and working correctly")
-else:
-    print(
-        "k6-sse is not installed or not working. Please run build_k6_sse() to install it."
-    )
 
 
 def greet(name, intensity):
