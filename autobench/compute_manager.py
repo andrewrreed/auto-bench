@@ -155,7 +155,7 @@ class ComputeManager:
 
         Args:
             model_id (str): The ID of the model.
-            gpu_memory (int): The amount of GPU memory required for the model.
+            gpu_memory (int): Total available GPU memory of the instance in GB.
             num_gpus (int): The number of GPUs required for the model.
 
         Returns:
@@ -211,10 +211,17 @@ class ComputeManager:
         logger.info(f"Finding viable instance configs for model_id={model_id}")
         viable_instances = []
         for instance in instances:
+            print(f"Num GPUs: {instance['num_gpus']}")
+            print(f"Total GPU Memory: {instance['gpu_memory_in_gb']}")
+            print()
+
+            total_gpu_memory = instance["gpu_memory_in_gb"]
+            num_gpus = instance["num_gpus"]
+
             config = self.get_tgi_config(
                 model_id,
-                gpu_memory=(instance["gpu_memory_in_gb"] * instance["num_gpus"]),
-                num_gpus=instance["num_gpus"],
+                gpu_memory=total_gpu_memory,
+                num_gpus=num_gpus,
             )
             if config:
                 tgi_config = TGIConfig(**config["config"])
