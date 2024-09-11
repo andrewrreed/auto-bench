@@ -148,7 +148,7 @@ class BenchmarkRunner:
         self.benchmark_dataset = benchmark_dataset
         self.output_dir = os.path.join(output_dir, self.deployment.deployment_name)
         # self.arrival_rates = self._get_arrival_rates()
-        self.arrival_rates = [1, 10, 50]
+        self.arrival_rates = [1, 10, 25, 50, 75, 100]
         logger.info(
             f"Initialized BenchmarkRunner for deployment: {deployment.deployment_id}"
         )
@@ -168,9 +168,9 @@ class BenchmarkRunner:
         for arrival_rate in self.arrival_rates:
             logger.info(f"Running benchmark for arrival rate: {arrival_rate}")
             executor = K6ConstantArrivalRateExecutor(
-                pre_allocated_vus=50,  # NOTE: should be 2k for full tests
+                pre_allocated_vus=500,  # NOTE: should be 2k for full tests
                 rate_per_second=arrival_rate,
-                duration="5s",
+                duration="15s",
             )
             scenario = Scenario(
                 host=self.deployment.endpoint.url,
