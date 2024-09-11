@@ -1,3 +1,14 @@
+---
+title: TGI IE AutoBench
+emoji: 🤗
+colorFrom: purple
+colorTo: blue
+sdk: gradio
+sdk_version: "4.44.0"
+app_file: app/app.py
+pinned: false
+---
+
 # HF IE AutoBench
 
 ## Setup
