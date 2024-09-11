@@ -1,35 +1,75 @@
 import gradio as gr
 import subprocess
 import os
+import sys
 import shutil
 
 
 def run_command(command, cwd=None):
     try:
-        subprocess.run(command, check=True, shell=True, cwd=cwd)
+        process = subprocess.Popen(
+            command,
+            shell=True,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        stdout, stderr = process.communicate()
+        if process.returncode != 0:
+            print(f"Command '{command}' failed with return code {process.returncode}")
+            print(f"STDOUT: {stdout}")
+            print(f"STDERR: {stderr}")
+            raise subprocess.CalledProcessError(
+                process.returncode, command, stdout, stderr
+            )
+        return stdout
     except subprocess.CalledProcessError as e:
         print(f"Error executing command: {e}")
+        print(f"STDOUT: {e.stdout}")
+        print(f"STDERR: {e.stderr}")
         raise
 
 
-def build_k6_sse():
+def check_git_config():
+    try:
+        user_name = run_command("git config --get user.name").strip()
+        user_email = run_command("git config --get user.email").strip()
+        print(f"Git user.name: {user_name}")
+        print(f"Git user.email: {user_email}")
+    except subprocess.CalledProcessError:
+        print("Git configuration not set.")
+
+
+def main():
     temp_dir = "/tmp/xk6"
     xk6_sse_dir = os.path.join(temp_dir, "xk6-sse")
     local_bin_dir = os.path.expanduser("~/.local/bin/")
 
+    print(f"Python version: {sys.version}")
+    print(f"Current working directory: {os.getcwd()}")
+    print(f"Contents of current directory: {os.listdir()}")
+
+    check_git_config()
+
     # Create temporary directory
     os.makedirs(temp_dir, exist_ok=True)
+    print(f"Created directory: {temp_dir}")
 
     # Change to temporary directory
     original_dir = os.getcwd()
     os.chdir(temp_dir)
+    print(f"Changed to directory: {temp_dir}")
 
     try:
         # Clone repository
+        print("Attempting to clone repository...")
         run_command("git clone https://github.com/mstoykov/xk6-sse.git")
+        print("Repository cloned successfully")
 
         # Change to xk6-sse directory
         os.chdir(xk6_sse_dir)
+        print(f"Changed to directory: {xk6_sse_dir}")
 
         # Checkout specific branch
         run_command("git checkout useSobek")
@@ -46,9 +86,12 @@ def build_k6_sse():
         # Move k6 to local bin directory
         shutil.move("k6", os.path.join(local_bin_dir, "k6-sse"))
 
+    except Exception as e:
+        print(f"An error occurred: {e}")
     finally:
         # Change back to original directory
         os.chdir(original_dir)
+        print(f"Changed back to directory: {original_dir}")
 
 
 # def run_command(command, shell=False, env=None):
@@ -123,7 +166,7 @@ def check_k6_sse():
 
 
 # Build k6-sse
-build_k6_sse()
+main()
 
 # Check if k6-sse exists and works
 if check_k6_sse():
