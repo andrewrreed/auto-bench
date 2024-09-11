@@ -37,7 +37,7 @@ def install_go():
 
     commands = [
         f"wget https://go.dev/dl/{latest_version}.linux-amd64.tar.gz",
-        f"sudo tar -C /usr/local -xzf {latest_version}.linux-amd64.tar.gz",
+        f"tar -C /usr/local -xzf {latest_version}.linux-amd64.tar.gz",
         "echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc",
         "source ~/.bashrc",
     ]
