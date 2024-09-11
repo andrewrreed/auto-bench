@@ -30,7 +30,6 @@ def run_command(command, env=None, verbose=False):
 
 
 def install_go():
-
     latest_version = "go1.21.0"
 
     print(f"Installing Go version: {latest_version}")
@@ -38,8 +37,7 @@ def install_go():
     commands = [
         f"wget https://go.dev/dl/{latest_version}.linux-amd64.tar.gz",
         f"tar -C /usr/local -xzf {latest_version}.linux-amd64.tar.gz",
-        "echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc",
-        "source ~/.bashrc",
+        f"echo 'export PATH=$PATH:/usr/local/go/bin' >> $HOME/.bashrc",
     ]
 
     for command in commands:
@@ -48,8 +46,11 @@ def install_go():
             print(f"Failed to execute command: {command}")
             return False
 
+    # Update PATH in the current environment
+    os.environ["PATH"] = f"/usr/local/go/bin:{os.environ.get('PATH', '')}"
+
     # Verify installation
-    success, output = run_command("/usr/local/go/bin/go version")
+    success, output = run_command("go version")
     if success:
         print(f"Go installed successfully: {output.strip()}")
         return True
@@ -59,7 +60,7 @@ def install_go():
 
 
 def get_go_bin():
-    _, output = run_command("/usr/local/go/bin/go env GOPATH")
+    _, output = run_command("go env GOPATH")
     gopath = output.strip()
     if gopath:
         return os.path.join(gopath, "bin")
@@ -70,16 +71,12 @@ def get_go_bin():
 if not install_go():
     sys.exit(1)
 
-# Update PATH to include Go
-new_env = os.environ.copy()
-new_env["PATH"] = f"/usr/local/go/bin:{new_env.get('PATH', '')}"
-
 # Get the Go bin directory
 go_bin = get_go_bin()
 if go_bin:
     print(f"Found Go bin directory: {go_bin}")
     # Add Go bin to PATH
-    new_env["PATH"] = f"{go_bin}:{new_env['PATH']}"
+    os.environ["PATH"] = f"{go_bin}:{os.environ['PATH']}"
 else:
     print("Could not find Go bin directory. Using default PATH.")
 
@@ -89,7 +86,7 @@ os.makedirs(build_dir, exist_ok=True)
 os.chdir(build_dir)
 
 # Initialize Go module
-run_command("go mod init k6-build", env=new_env)
+run_command("go mod init k6-build")
 
 # Run the commands
 commands = [
@@ -103,30 +100,30 @@ commands = [
 
 for command in commands:
     verbose = "xk6 build" in command
-    success, output = run_command(command, env=new_env, verbose=verbose)
+    success, output = run_command(command, verbose=verbose)
     if not success:
         if "go install" in command:
             print("Failed to install xk6. Checking Go installation...")
-            run_command("go version", env=new_env)
+            run_command("go version")
             print("Checking GOPATH...")
-            run_command("go env GOPATH", env=new_env)
+            run_command("go env GOPATH")
         elif "xk6" in command:
             print("xk6 command failed. Checking xk6 installation...")
-            run_command("which xk6", env=new_env)
+            run_command("which xk6")
             print("Checking Go installation...")
-            run_command("go version", env=new_env)
+            run_command("go version")
             print("Checking GOPATH...")
-            run_command("go env GOPATH", env=new_env)
+            run_command("go env GOPATH")
             print("Listing Go bin directory:")
             if go_bin:
-                run_command(f"ls -l {go_bin}", env=new_env)
+                run_command(f"ls -l {go_bin}")
             print("Checking xk6 version:")
-            run_command("xk6 version", env=new_env)
+            run_command("xk6 version")
         if "mv k6" in command or "../.bin/k6" in command:
             print("Checking if k6 file exists:")
-            run_command("ls -l k6", env=new_env)
+            run_command("ls -l k6")
             print("Checking .bin directory:")
-            run_command("ls -l ../.bin", env=new_env)
+            run_command("ls -l ../.bin")
 
 print("Script execution completed.")
 
