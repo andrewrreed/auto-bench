@@ -4,9 +4,9 @@ import os
 import shutil
 
 
-def run_command(command, shell=False):
+def run_command(command, shell=False, env=None):
     result = subprocess.run(
-        command, shell=shell, check=True, text=True, capture_output=True
+        command, shell=shell, check=True, text=True, capture_output=True, env=env
     )
     print(f"Command output:\n{result.stdout}")
     if result.stderr:
@@ -30,8 +30,8 @@ def build_k6_sse():
         run_command(["go", "install", "go.k6.io/xk6/cmd/xk6@latest"])
 
         # Build custom k6 binary
-        # env = os.environ.copy()
-        # env["GOFLAGS"] = "-mod=mod"
+        env = os.environ.copy()
+        env["GOFLAGS"] = "-mod=mod"
         run_command(
             [
                 "GOFLAGS=-mod=mod",
@@ -41,7 +41,7 @@ def build_k6_sse():
                 "--with",
                 "github.com/andrewrreed/xk6-sse@a24fd84",
             ],
-            # env=env,
+            env=env,
         )
 
         # Create local bin directory
