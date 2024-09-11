@@ -6,20 +6,26 @@ import shutil
 import socket
 
 
-def run_command(command, env=None):
+def run_command(command, env=None, verbose=False):
     print(f"Running command: {command}")
     try:
-        result = subprocess.run(
-            command, shell=True, check=True, text=True, capture_output=True, env=env
-        )
-        print(f"Command succeeded: {command}")
-        print(f"Output: {result.stdout}")
-        return True, result.stdout
+        if verbose:
+            result = subprocess.run(command, shell=True, check=True, text=True, env=env)
+            print(f"Command succeeded: {command}")
+            return True, ""
+        else:
+            result = subprocess.run(
+                command, shell=True, check=True, text=True, capture_output=True, env=env
+            )
+            print(f"Command succeeded: {command}")
+            print(f"Output: {result.stdout}")
+            return True, result.stdout
     except subprocess.CalledProcessError as e:
         print(f"Command failed: {command}")
         print(f"Error: {e}")
-        print(f"Output: {e.stdout}")
-        print(f"Error output: {e.stderr}")
+        if not verbose:
+            print(f"Output: {e.stdout}")
+            print(f"Error output: {e.stderr}")
         return False, e.stderr
 
 
@@ -28,7 +34,6 @@ def get_go_bin():
     gopath = output.strip()
     if gopath:
         return os.path.join(gopath, "bin")
-    return None
 
 
 def main():
@@ -48,14 +53,15 @@ def main():
     commands = [
         "go install go.k6.io/xk6/cmd/xk6@latest",
         "which xk6",
-        "xk6 build --with github.com/phymbert/xk6-sse@0abbe3e94fe104a13021524b1b98d26447a7d182",
+        "xk6 build --with github.com/phymbert/xk6-sse@0abbe3e94fe104a13021524b1b98d26447a7d182 -v",
         "mkdir -p .bin/",
         "mv k6 .bin/k6",
         ".bin/k6 --version",
     ]
 
     for command in commands:
-        success, _ = run_command(command, env=new_env)
+        verbose = "xk6 build" in command
+        success, _ = run_command(command, env=new_env, verbose=verbose)
         if not success:
             if "go install" in command:
                 print("Failed to install xk6. Checking Go installation...")
