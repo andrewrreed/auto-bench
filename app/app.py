@@ -128,10 +128,6 @@ for command in commands:
 print("Script execution completed.")
 
 
-# Build k6-sse
-main()
-
-
 def greet(name, intensity):
     return "Hello, " + name + "!" * int(intensity)
 
