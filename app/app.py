@@ -34,7 +34,6 @@ def build_k6_sse():
         env["GOFLAGS"] = "-mod=mod"
         run_command(
             [
-                "GOFLAGS=-mod=mod",
                 "xk6",
                 "build",
                 "master",
