@@ -243,6 +243,7 @@ async def run_scheduler_async(viable_instances: List[Dict], namespace: str):
     )
     scheduler = Scheduler(viable_instances, namespace, RESULTS_DIR)
     await scheduler.run()
+    return scheduler  # Add this line to return the Scheduler object
 
 
 def run_scheduler(viable_instances, namespace):
