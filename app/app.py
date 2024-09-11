@@ -19,7 +19,7 @@ def run_command(command, env=None, verbose=False):
             )
             print(f"Command succeeded: {command}")
             print(f"Output: {result.stdout}")
-            return True, result.stdout
+        return True, result.stdout
     except subprocess.CalledProcessError as e:
         print(f"Command failed: {command}")
         print(f"Error: {e}")
@@ -34,6 +34,7 @@ def get_go_bin():
     gopath = output.strip()
     if gopath:
         return os.path.join(gopath, "bin")
+    return None
 
 
 def main():
@@ -53,7 +54,7 @@ def main():
     commands = [
         "go install go.k6.io/xk6/cmd/xk6@latest",
         "which xk6",
-        "xk6 build --with github.com/phymbert/xk6-sse@0abbe3e94fe104a13021524b1b98d26447a7d182 -v",
+        "xk6 build --with github.com/phymbert/xk6-sse@0abbe3e94fe104a13021524b1b98d26447a7d182",
         "mkdir -p .bin/",
         "mv k6 .bin/k6",
         ".bin/k6 --version",
@@ -61,7 +62,7 @@ def main():
 
     for command in commands:
         verbose = "xk6 build" in command
-        success, _ = run_command(command, env=new_env, verbose=verbose)
+        success, output = run_command(command, env=new_env, verbose=verbose)
         if not success:
             if "go install" in command:
                 print("Failed to install xk6. Checking Go installation...")
@@ -78,6 +79,8 @@ def main():
                 print("Listing Go bin directory:")
                 if go_bin:
                     run_command(f"ls -l {go_bin}", env=new_env)
+                print("Checking xk6 version:")
+                run_command("xk6 version", env=new_env)
             if "mv k6" in command or ".bin/k6" in command:
                 print("Checking if k6 file exists:")
                 run_command("ls -l k6", env=new_env)
