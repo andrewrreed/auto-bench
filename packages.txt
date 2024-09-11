@@ -1,2 +1,2 @@
-golang-1.21-go
+golang-go -t $(lsb_release -cs)-backports
 git
