@@ -21,8 +21,6 @@ from autobench.data import BenchmarkDataset
 from huggingface_hub.constants import INFERENCE_ENDPOINTS_ENDPOINT
 from huggingface_hub.utils import get_session, hf_raise_for_status, build_hf_headers
 
-RESULTS_DIR = os.path.join(os.path.dirname(__file__), "benchmark_results")
-
 
 class Scheduler:
     def __init__(self, viable_instances: List[Dict], namespace: str, output_dir: str):
@@ -153,6 +151,8 @@ class Scheduler:
                     instance_config=instance["instance_config"],
                 ),
             )
+            deployment_status["deployment_id"] = deployment.deployment_id
+            deployment_status["deployment_name"] = deployment.deployment_name
 
             # Now deploy the endpoint
             await asyncio.to_thread(deployment.deploy_endpoint)
@@ -237,16 +237,19 @@ def delete_inference_endpoint(endpoint_id: str, namespace: str):
         raise
 
 
-async def run_scheduler_async(viable_instances: List[Dict], namespace: str):
+async def run_scheduler_async(
+    viable_instances: List[Dict], namespace: str, output_dir: str
+):
     logger.info(
         f"Starting async scheduler with {len(viable_instances)} instances for namespace: {namespace}"
     )
-    scheduler = Scheduler(viable_instances, namespace, RESULTS_DIR)
+    scheduler = Scheduler(viable_instances, namespace, output_dir)
     await scheduler.run()
+    return scheduler
 
 
-def run_scheduler(viable_instances, namespace):
+def run_scheduler(viable_instances, namespace, output_dir):
     logger.info(
         f"Running scheduler for {len(viable_instances)} instances in namespace: {namespace}"
     )
-    return asyncio.run(run_scheduler_async(viable_instances, namespace))
+    return asyncio.run(run_scheduler_async(viable_instances, namespace, output_dir))
