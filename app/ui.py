@@ -1,6 +1,8 @@
 import gradio as gr
 
-from .setup import setup_k6
+
+from autobench.compute_manager import ComputeManager
+from app.setup import setup_k6
 
 
 # install go and k6-sse
