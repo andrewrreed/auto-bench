@@ -1,9 +1,6 @@
 import gradio as gr
-import subprocess
-import os
-import sys
 
-from app.setup import setup_k6
+from .setup import setup_k6
 
 
 # install go and k6-sse
