@@ -41,6 +41,7 @@ def install_go():
         f"wget https://go.dev/dl/{VERSION}.linux-amd64.tar.gz",
         f"tar -C /usr/local -xzf {VERSION}.linux-amd64.tar.gz",
         "echo 'export PATH=$PATH:/usr/local/go/bin' >> $HOME/.bashrc",
+        "rm -rf {VERSION}.linux-amd64.tar.gz",
     ]
 
     for command in commands:
@@ -102,9 +103,12 @@ def setup_k6():
         "go install go.k6.io/xk6/cmd/xk6@latest",
         "which xk6",
         "xk6 build --with github.com/phymbert/xk6-sse@0abbe3e94fe104a13021524b1b98d26447a7d182",
+        # move executable to .bin
         "mkdir -p ../.bin/",
         "mv k6 ../.bin/k6",
         "../.bin/k6 --version",
+        # clean up
+        "rm -rf k6-build",
     ]
 
     for command in commands:
@@ -143,7 +147,7 @@ def setup_k6():
         logger.success("k6-sse installed successfully")
 
         # set k6 executable path to env
-        os.environ["K6_EXE"] = "../.bin/k6"
+        os.environ["K6_EXE"] = os.path.abspath("../.bin/k6")
         logger.info(f"K6_EXE directory set as env var: {os.environ['K6_EXE']}")
 
         return True
