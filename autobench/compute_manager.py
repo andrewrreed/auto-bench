@@ -1,7 +1,7 @@
 from loguru import logger
 import requests
 import pandas as pd
-from typing import Dict, List
+from typing import Dict, List, Literal
 from urllib.parse import urlencode
 
 from autobench.config import TGIConfig, ComputeInstanceConfig
@@ -126,27 +126,64 @@ class ComputeManager:
         logger.info(f"Filtered {len(filtered_df)} available GPU options")
         return filtered_df
 
-    def get_instance_details(self, vendor: str, region: str, gpu_types: List[str]):
+    def get_instance_details(
+        self,
+        gpu_types: List[str],
+        preferred_vendor: str = "aws",
+        preferred_region_prefix: Literal["us", "eu"] = "us",
+    ):
         """
-        Retrieve instance details based on the specified vendor, region, and GPU types.
+        Retrieve instance details based on specified GPU types, with optional vendor and region preferences.
+
+        This method filters the available compute options based on the provided GPU types and sorts them
+        according to the specified preferences. It prioritizes instances from the preferred vendor and region,
+        and then sorts by price per hour in ascending order.
 
         Args:
-            vendor (str): The vendor of the instances.
-            region (str): The region where the instances are located.
-            gpu_types (list): A list of GPU types to filter the instances.
+            gpu_types (List[str]): A list of GPU types to filter the instances.
+            preferred_vendor (str, optional): The preferred vendor for instances. Defaults to "aws".
+            preferred_region_prefix (Literal["us", "eu"], optional): The preferred region prefix. Defaults to "us".
 
         Returns:
-            list: A list of dictionaries containing the instance details that match the specified criteria.
+            List[Dict]: A list of dictionaries containing the instance details that match the specified criteria.
+
+        Note:
+            The method first filters instances by GPU type, then sorts them based on the number of GPUs,
+            instance type, vendor preference, region preference, and price per hour. It then removes
+            duplicates, keeping the first occurrence (which will be the lowest priced option for each
+            unique combination of number of GPUs and instance type).
         """
-        result = self.options[
-            (self.options["vendor"] == vendor)
-            & (self.options["region"] == region)
-            & (self.options["instance_type"].isin(gpu_types))
-        ].to_dict(orient="records")
         logger.info(
-            f"Found {len(result)} instances matching criteria: vendor={vendor}, region={region}, gpu_types={gpu_types}"
+            f"Getting instance details for gpu_types={gpu_types}, preferred_vendor={preferred_vendor}, preferred_region_prefix={preferred_region_prefix}"
         )
-        return result
+        df = self.options[self.options["instance_type"].isin(gpu_types)]
+
+        df_sorted = df.sort_values(
+            by=[
+                "num_gpus",
+                "instance_type",
+                "vendor",
+                "region",
+                "price_per_hour",
+            ],
+            key=lambda col: (
+                col
+                if col.name not in ["vendor", "region"]
+                else col.map(
+                    lambda x: (
+                        (0 if x == preferred_vendor else 1)
+                        if col.name == "vendor"
+                        else (0 if x.startswith(preferred_region_prefix) else 1)
+                    )
+                )
+            ),
+        )
+
+        df_deduplicated = df_sorted.drop_duplicates(
+            subset=["num_gpus", "instance_type"], keep="first"
+        )
+
+        return df_deduplicated.to_dict(orient="records")
 
     @staticmethod
     def get_tgi_config(model_id: str, gpu_memory: int, num_gpus: int):
