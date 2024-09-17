@@ -7,6 +7,8 @@ sdk: gradio
 sdk_version: "4.44.0"
 app_file: app/ui.py
 pinned: false
+hf_oauth: true
+
 ---
 
 # HF IE AutoBench

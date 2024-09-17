@@ -74,12 +74,22 @@ def get_go_bin():
 # Install Go
 def setup_k6():
 
+    # check if k6 is already installed
+    success, _ = run_command("k6 --version")
+    if not success:
+        logger.error("k6 is not installed. Installing k6...")
+    else:
+        logger.success("k6 is already installed")
+        return True
+
     # check if go is installed
     success, _ = run_command("go version")
     if not success:
         logger.error("Go is not installed. Installing Go...")
         if not install_go():
             sys.exit(1)
+    else:
+        logger.success("Go is already installed")
 
     # Get the Go bin directory
     go_bin = get_go_bin()
