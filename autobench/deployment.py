@@ -53,6 +53,7 @@ class Deployment:
                 instance_type=self.instance_config.instance_type,
                 min_replica=0,
                 max_replica=1,
+                scale_to_zero_timeout=30,
                 type="protected",
                 custom_image={
                     "health_route": "/health",
