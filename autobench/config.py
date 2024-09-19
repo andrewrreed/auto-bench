@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 from loguru import logger
 
 
@@ -10,7 +11,7 @@ class TGIConfig:
     max_total_tokens: int
     num_shard: int
     quantize: str
-    estimated_memory_in_gigabytes: float
+    estimated_memory_in_gigabytes: Optional[float] = None
 
     def __post_init__(self):
         logger.info(f"Initializing TGIConfig for model: {self.model_id}")
@@ -30,20 +31,20 @@ class TGIConfig:
 class ComputeInstanceConfig:
     id: str
     vendor: str
-    vendor_status: str
     region: str
-    region_label: str
-    region_status: str
     accelerator: str
-    num_gpus: int
-    memory_in_gb: float
-    gpu_memory_in_gb: float
     instance_type: str
     instance_size: str
-    architecture: str
-    status: str
-    price_per_hour: float
-    num_cpus: int
+    num_gpus: Optional[int] = None
+    memory_in_gb: Optional[float] = None
+    gpu_memory_in_gb: Optional[float] = None
+    vendor_status: Optional[str] = None
+    region_label: Optional[str] = None
+    region_status: Optional[str] = None
+    architecture: Optional[str] = None
+    status: Optional[str] = None
+    price_per_hour: Optional[float] = None
+    num_cpus: Optional[int] = None
 
     def __post_init__(self):
         logger.info(f"Initializing ComputeInstanceConfig for instance: {self.id}")
