@@ -110,7 +110,7 @@ class Deployment:
                 type="protected",
                 custom_image={
                     "health_route": "/health",
-                    "url": "ghcr.io/huggingface/text-generation-inference:latest",
+                    "url": "ghcr.io/huggingface/text-generation-inference:sha-169178b",
                     "env": self.tgi_config.env_vars,
                 },
             )
