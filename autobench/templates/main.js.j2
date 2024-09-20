@@ -27,7 +27,7 @@ export function handleSummary(data) {
 
 
 export function generate_payload(example, max_new_tokens) {
-    const input = example[0]["value"]
+    const input = example
     return {
         "messages": [{ "role": "user", "content": input }],
         "model": "tgi",

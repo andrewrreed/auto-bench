@@ -28,14 +28,20 @@ class ComputeManager:
 
     def get_ie_compute_options(self):
         """
-        Retrieves the compute options for the IE (Inference Engine) from a specified URL.
+        Retrieves the all gpu-enabled compute instance options that are available on Inference Endpoints.
+
+        This method fetches the available compute options, processes the data,
+        and returns a filtered DataFrame of compute instances.
 
         Returns:
-            pandas.DataFrame or None: A DataFrame containing the compute options for the IE if the request is successful,
-            None otherwise.
+            pandas.DataFrame: A DataFrame containing filtered compute options.
+                              Each row represents a compute instance with its
+                              specifications and availability.
+
+        Raises:
+            requests.RequestException: If there's an error fetching data from the API.
         """
         base_url = "https://api.endpoints.huggingface.cloud/v2/provider"
-        logger.info(f"Fetching compute options from {base_url}")
 
         try:
             response = requests.get(base_url)
@@ -45,11 +51,10 @@ class ComputeManager:
             return None
 
         data = response.json()
-        logger.debug(f"Received {len(data['vendors'])} vendors from the API")
         df = self._nested_json_to_df(data["vendors"])
         df = self._filter_options(df)
         df = self._clean_df(df)
-        logger.info(f"Processed {len(df)} compute options")
+        logger.info(f"Gathered {len(df)} compute instance options")
         return df
 
     @staticmethod

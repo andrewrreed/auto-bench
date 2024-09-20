@@ -1,58 +1,69 @@
 import os
 import json
-import tqdm
+import random
 import datasets
-from autobench.config import DataConfig
+from transformers import AutoTokenizer
+from autobench.config import DatasetConfig
 from loguru import logger
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 class BenchmarkDataset:
-    def __init__(self, data_config: DataConfig):
+    def __init__(self, data_config: DatasetConfig):
         self.data_config = data_config
         self.file_path = self._adjust_file_path()
 
-        logger.info(f"Initializing BenchmarkDataset with config: {data_config}")
         os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
-        logger.debug(f"Ensured directory exists for file path: {self.file_path}")
+        self.build_benchmark_dataset()
 
     def _adjust_file_path(self):
-        # Ensure data_file_path is relative to the project root
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        adjusted_path = os.path.join(project_root, self.data_config.file_path)
-        logger.debug(f"Adjusted file path: {adjusted_path}")
+        """Ensure data_file_path is relative to the project root"""
+        adjusted_path = os.path.join(ROOT_DIR, self.data_config.file_path)
         return adjusted_path
 
-    def build_data(self):
-        # TODO:
-        # Add a check to see if the data already exists
-        # Generalize to other datasets
-        # Add in "t-shirt" size options for dataset (e.g. multi-turn, long-propt RAG, etc.)
-        dataset = datasets.load_dataset(
-            self.data_config.dataset_name, split=self.data_config.dataset_split
-        )
-        logger.debug(f"Loaded dataset with {len(dataset)} items")
+    def build_benchmark_dataset(self):
 
-        # Select only the first 2k conversations
-        max_conversations = min(2000, len(dataset))
-        logger.info(f"Selecting up to {max_conversations} conversations")
+        if not os.path.exists(self.file_path):
+            dataset = datasets.load_dataset(
+                self.data_config.name, split=self.data_config.split
+            )
+            tokenizer = AutoTokenizer.from_pretrained(self.data_config.tokenizer_name)
 
-        conversations = []
+            dataset = dataset.map(
+                lambda example: {
+                    "num_tokens": len(tokenizer.encode(example["prompt"]))
+                },
+                num_proc=8,
+            )
+            dataset = sample_dataset(
+                dataset=dataset,
+                n_samples=2500,
+                min_tokens=self.data_config.min_prompt_length,
+                max_tokens=self.data_config.max_prompt_length,
+            )
 
-        for item in tqdm.tqdm(dataset, total=max_conversations):
-            conv = item.get("conversations")
-            if conv and conv[0]["from"] == "system":
-                # Get only the initial user message
-                conv = conv[1:2]
-                conversations.append(conv)
+            with open(self.file_path, "w") as f:
+                json.dump(dataset["prompt"], f, indent=4)
 
-                if len(conversations) >= max_conversations:
-                    logger.debug("Reached maximum number of conversations")
-                    break
+            logger.success(f"Saved conversations to {self.file_path}")
 
-        logger.info(f"Collected {len(conversations)} conversations")
 
-        with open(self.file_path, "w") as f:
-            json.dump(conversations, f, indent=4)
-        logger.success(f"Saved conversations to {self.file_path}")
+def sample_dataset(dataset, n_samples, min_tokens, max_tokens):
 
-        # TODO: Implement dataset size options and generalize to other datasets
+    filtered_dataset = dataset.filter(
+        lambda x: min_tokens <= x["num_tokens"] <= max_tokens, num_proc=8
+    )
+
+    total_samples = len(filtered_dataset)
+
+    # If we have fewer samples than requested, return all of them
+    if total_samples <= n_samples:
+        return filtered_dataset
+
+    # Otherwise, randomly sample n_samples
+    random.seed(42)
+    random_indices = random.sample(range(total_samples), n_samples)
+    sampled_dataset = filtered_dataset.select(random_indices)
+
+    return sampled_dataset

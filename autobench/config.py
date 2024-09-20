@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 from loguru import logger
 
@@ -66,13 +66,18 @@ class DeploymentConfig:
 
 
 @dataclass
-class DataConfig:
-    dataset_name: str = "Open-Orca/slimorca-deduped-cleaned-corrected"
-    dataset_split: str = "train"
-    file_path: str = "benchmark_data/data.json"
+class DatasetConfig:
+
+    min_prompt_length: int = 50
+    max_prompt_length: int = 500
+    file_path: str = field(init=False)
+
+    # hardcoded for now
+    split: str = field(default="train_sft", init=False)
+    name: str = field(default="HuggingFaceH4/ultrachat_200k", init=False)
+    tokenizer_name: str = field(
+        default="meta-llama/Meta-Llama-3-8B", init=False
+    )  # fixed for consistency
 
     def __post_init__(self):
-        logger.info(f"Initializing DataConfig with dataset: {self.dataset_name}")
-        logger.debug(
-            f"DataConfig details: split={self.dataset_split}, file_path={self.file_path}"
-        )
+        self.file_path = f'benchmark_data/{("__").join(self.name.split("/"))}-{self.split}-{self.min_prompt_length}_min-{self.max_prompt_length}_max.json'
