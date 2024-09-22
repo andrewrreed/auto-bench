@@ -12,7 +12,7 @@ from tenacity import (
     retry_if_exception_type,
 )
 
-from autobench.runner import Scenario
+from autobench.scenario import Scenario
 from autobench.deployment import Deployment
 
 from huggingface_hub.constants import INFERENCE_ENDPOINTS_ENDPOINT

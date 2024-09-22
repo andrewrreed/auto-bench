@@ -7,7 +7,7 @@ import asyncio
 import nest_asyncio
 from autobench.scheduler import Scheduler
 
-from autobench.runner import Scenario, ScenarioGroup
+from autobench.scenario import Scenario, ScenarioGroup
 
 
 class Benchmark:
@@ -24,7 +24,11 @@ class Benchmark:
 
     """
 
-    def __init__(self, scenarios: Union[Scenario, List[Scenario]], output_dir: str):
+    def __init__(
+        self,
+        scenarios: Union[Scenario, List[Scenario], ScenarioGroup, List[ScenarioGroup]],
+        output_dir: str,
+    ):
         self.output_dir = output_dir
         self.namespace = "andrewrreed"
         self.benchmark_id = str(uuid.uuid4())
