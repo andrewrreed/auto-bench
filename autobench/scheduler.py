@@ -206,15 +206,16 @@ class Scheduler:
                 )
                 try:
                     # TODO: Ideally, if endpoint has failed, retrieve container logs somehow and save them to the deployment_status before deleting
-                    # await asyncio.sleep(5)
-                    # await asyncio.to_thread(
-                    #     delete_inference_endpoint,
-                    #     scenario_group.deployment.deployment_id,
-                    #     self.namespace,
-                    # )
-                    logger.success(
-                        f"Deployment deleted for instance: {scenario_group.deployment.instance_config.id}"
-                    )
+                    if scenario_group.deployment.teardown_on_exit:
+                        await asyncio.sleep(5)
+                        await asyncio.to_thread(
+                            delete_inference_endpoint,
+                            scenario_group.deployment.deployment_id,
+                            self.namespace,
+                        )
+                        logger.success(
+                            f"Endpoint deleted for deployment: {scenario_group.deployment.deployment_id}"
+                        )
                 except Exception as e:
                     logger.error(
                         f"Error deleting deployment for instance {scenario_group.deployment.instance_config.id}: {str(e)}"

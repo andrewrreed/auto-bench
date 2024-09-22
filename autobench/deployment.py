@@ -1,4 +1,6 @@
 import uuid
+from typing import Optional
+
 from huggingface_hub import create_inference_endpoint, whoami, get_inference_endpoint
 from loguru import logger
 
@@ -10,6 +12,7 @@ class Deployment:
     def __init__(
         self,
         deployment_config: DeploymentConfig,
+        teardown_on_exit: Optional[bool] = True,
     ):
         self.deployment_config = deployment_config
         self.tgi_config = deployment_config.tgi_config
@@ -20,6 +23,7 @@ class Deployment:
             self.deployment_id = str(uuid.uuid4())[
                 :-4
             ]  # truncated due to IE endpoint naming restrictions
+            self.teardown_on_exit = teardown_on_exit
         else:
             self._exists = True
 
@@ -27,7 +31,9 @@ class Deployment:
         logger.info(f"Deployment initialized with name: {self.deployment_name}")
 
     @classmethod
-    def from_existing_endpoint(cls, endpoint_name: str):
+    def from_existing_endpoint(
+        cls, endpoint_name: str, teardown_on_exit: Optional[bool] = False
+    ):
         logger.info(f"Creating Deployment from existing endpoint: {endpoint_name}")
 
         try:
@@ -53,6 +59,7 @@ class Deployment:
         instance._from_factory = True
         instance.endpoint = endpoint
         instance.deployment_id = endpoint_name
+        instance.teardown_on_exit = teardown_on_exit
         instance.__init__(deployment_config)
 
         return instance
