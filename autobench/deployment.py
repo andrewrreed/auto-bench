@@ -14,11 +14,14 @@ class Deployment:
         self.deployment_config = deployment_config
         self.tgi_config = deployment_config.tgi_config
         self.instance_config = deployment_config.instance_config
+        self._exists = False
 
         if not getattr(self, "_from_factory", False):
             self.deployment_id = str(uuid.uuid4())[
                 :-4
             ]  # truncated due to IE endpoint naming restrictions
+        else:
+            self._exists = True
 
         self.deployment_name = "deployment_" + self.deployment_id
         logger.info(f"Deployment initialized with name: {self.deployment_name}")
@@ -85,6 +88,9 @@ class Deployment:
             accelerator=endpoint_info["compute"].get("accelerator", None),
             instance_type=endpoint_info["compute"].get("instanceType", None),
             instance_size=endpoint_info["compute"].get("instanceSize", None),
+            num_gpus=int(
+                endpoint_info["compute"].get("instanceSize", None)[-1]
+            ),  # need to fix this to handle None case
         )
 
         return DeploymentConfig(tgi_config, compute_instance_config)
@@ -118,8 +124,16 @@ class Deployment:
             logger.info("Waiting for endpoint to be ready...")
             endpoint.wait()
             self.endpoint = endpoint
+            self._exists = True
             logger.success(f"Endpoint created successfully: {endpoint.url}")
 
         except Exception as e:
             logger.error(f"Failed to create inference endpoint: {e}")
             raise
+
+    def endpoint_status(self):
+        if hasattr(self, "endpoint"):
+            deployment = self.endpoint.fetch()
+            return deployment.status
+        else:
+            raise Exception("Endpoint hasn't been created yet for this deployment")

@@ -4,7 +4,8 @@ import sys
 
 def setup_logging():
 
-    LOG_LEVEL = "WARNING" if "ipykernel" in sys.modules else "INFO"
+    LOG_LEVEL = "SUCCESS" if "ipykernel" in sys.modules else "INFO"
+    LOG_LEVEL = "INFO"
 
     logger.remove()
     logger.add(
