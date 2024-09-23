@@ -73,21 +73,25 @@ class Scenario:
 
         stdout, stderr = self.process.communicate()
 
+        scenario_status = {
+            "status": None,
+            "error": None,
+        }
         if self.process.returncode != 0:
             logger.error(
                 f"k6 process failed with return code {self.process.returncode}"
             )
             logger.error(f"stderr: {stderr}")
-            return None
+            scenario_status["status"] = "failed"
+            scenario_status["error"] = stderr
 
-        # Log the entire output for debugging
-        logger.debug(f"k6 stdout: {stdout}")
-
-        # Try to parse the last line as JSON
         try:
             result_summary = json.loads(stdout.strip())
+            scenario_status["status"] = "success"
         except json.JSONDecodeError:
             logger.error("Failed to parse k6 output as JSON")
+            scenario_status["status"] = "failed"
+            scenario_status["error"] = "Failed to parse k6 output as JSON"
             result_summary = None
 
         return ScenarioResult(
@@ -97,6 +101,7 @@ class Scenario:
             executor_variables=self.executor.variables,
             k6_script=self._get_scenario_script(),
             metrics=result_summary,
+            status=scenario_status,
         )
 
     def _get_scenario_script(self):

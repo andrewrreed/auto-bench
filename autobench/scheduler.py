@@ -12,8 +12,7 @@ from tenacity import (
     retry_if_exception_type,
 )
 
-from autobench.scenario import Scenario
-from autobench.deployment import Deployment
+from autobench.scenario import ScenarioGroup
 from huggingface_hub.constants import INFERENCE_ENDPOINTS_ENDPOINT
 from huggingface_hub.utils import get_session, hf_raise_for_status, build_hf_headers
 
@@ -30,7 +29,7 @@ class Scheduler:
 
     def __init__(
         self,
-        scenario_groups: Dict[Deployment, List[Scenario]],
+        scenario_groups: List[ScenarioGroup],
         namespace: str,
         output_dir: str,
     ):
@@ -39,9 +38,9 @@ class Scheduler:
         self.quota = None
         self.running_tasks = set()
         self.pending_tasks = asyncio.Queue()
-        self.scenerio_group_statuses = []
         self.output_dir = output_dir
         self.results = []
+        self.scenerio_group_statuses = []
 
     def fetch_quotas(self):
         """
@@ -199,10 +198,10 @@ class Scheduler:
 
         finally:
             if self._is_running(scenario_group.deployment):
-                logger.info(
-                    f"Attempting to delete deployment with ID: {scenario_group.deployment.deployment_id}"
-                )
                 try:
+                    logger.info(
+                        f"Attempting to delete deployment with ID: {scenario_group.deployment.deployment_id}"
+                    )
                     # TODO: Ideally, if endpoint has failed, retrieve container logs somehow and save them to the deployment_status before deleting
                     if scenario_group.deployment.teardown_on_exit:
                         await asyncio.sleep(5)

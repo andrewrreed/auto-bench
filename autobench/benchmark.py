@@ -11,6 +11,30 @@ from autobench.scheduler import Scheduler
 from autobench.scenario import Scenario, ScenarioGroup
 
 
+@dataclass
+class ScenarioResult:
+    scenario_id: str
+    deployment_id: str
+    executor_type: str
+    executor_variables: Dict[str, Any]
+    k6_script: str
+    metrics: Dict[str, Any]
+    status: Optional[Dict[str, Any]] = None
+
+
+@dataclass
+class ScenarioGroupResult:
+    deployment_id: str
+    scenario_results: List[ScenarioResult]
+    status: Optional[Dict[str, Any]] = None
+
+
+@dataclass
+class BenchmarkResult:
+    benchmark_id: str
+    scenario_group_results: List[ScenarioGroupResult]
+
+
 class Benchmark:
     """
 
@@ -89,29 +113,6 @@ class Benchmark:
         return BenchmarkResult(
             benchmark_id=self.benchmark_id, scenario_group_results=scheduler.results
         )
-
-
-@dataclass
-class ScenarioResult:
-    scenario_id: str
-    deployment_id: str
-    executor_type: str
-    executor_variables: Dict[str, Any]
-    k6_script: str
-    metrics: Dict[str, Any]
-
-
-@dataclass
-class ScenarioGroupResult:
-    deployment_id: str
-    scenario_results: List[ScenarioResult]
-    status: Optional[Dict[str, Any]] = None
-
-
-@dataclass
-class BenchmarkResult:
-    benchmark_id: str
-    scenario_group_results: List[ScenarioGroupResult]
 
 
 # class ResultsManager:
