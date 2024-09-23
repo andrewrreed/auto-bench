@@ -1,8 +1,9 @@
 import sys
 import uuid
 import os
+from dataclasses import dataclass
+from typing import List, Dict, Any, Union, Optional
 from collections import defaultdict
-from typing import List, Union
 import asyncio
 import nest_asyncio
 from autobench.scheduler import Scheduler
@@ -34,7 +35,6 @@ class Benchmark:
         self.benchmark_id = str(uuid.uuid4())
         self.benchmark_name = f"benchmark_{self.benchmark_id}"
         self.output_dir = os.path.join(output_dir, self.benchmark_name)
-
         self.scenarios = scenarios if isinstance(scenarios, list) else [scenarios]
         self.scenarios = [
             self._modify_output_dir(scenario) for scenario in self.scenarios
@@ -85,4 +85,61 @@ class Benchmark:
             # Running in Jupyter notebook
             nest_asyncio.apply()
 
-        return asyncio.run(self._run_scheduler_async())
+        scheduler = asyncio.run(self._run_scheduler_async())
+        return BenchmarkResult(
+            benchmark_id=self.benchmark_id, scenario_group_results=scheduler.results
+        )
+
+
+@dataclass
+class ScenarioResult:
+    scenario_id: str
+    deployment_id: str
+    executor_type: str
+    executor_variables: Dict[str, Any]
+    k6_script: str
+    metrics: Dict[str, Any]
+
+
+@dataclass
+class ScenarioGroupResult:
+    deployment_id: str
+    scenario_results: List[ScenarioResult]
+    status: Optional[Dict[str, Any]] = None
+
+
+@dataclass
+class BenchmarkResult:
+    benchmark_id: str
+    scenario_group_results: List[ScenarioGroupResult]
+
+
+# class ResultsManager:
+#     def __init__(self, output_dir: str, save_to_disk: bool = True):
+#         self.output_dir = output_dir
+#         self.save_to_disk = save_to_disk
+#         self.scenario_results: List[ScenarioResult] = []
+
+#     def add_scenario_result(self, result: ScenarioResult):
+#         self.scenario_results.append(result)
+#         if self.save_to_disk:
+#             self._save_scenario_result(result)
+
+#     def _save_scenario_result(self, result: ScenarioResult):
+#         scenario_dir = os.path.join(
+#             self.output_dir, result.deployment_id, result.scenario_id
+#         )
+#         os.makedirs(scenario_dir, exist_ok=True)
+#         with open(os.path.join(scenario_dir, "result.json"), "w") as f:
+#             json.dump(asdict(result), f, indent=2)
+
+#     def get_benchmark_result(self) -> BenchmarkResult:
+#         return BenchmarkResult(
+#             benchmark_id=os.path.basename(self.output_dir),
+#             scenarios=self.scenario_results,
+#         )
+
+#     def save_benchmark_result(self, result: BenchmarkResult):
+#         if self.save_to_disk:
+#             with open(os.path.join(self.output_dir, "benchmark_result.json"), "w") as f:
+#                 json.dump(asdict(result), f, indent=2)

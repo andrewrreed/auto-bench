@@ -14,7 +14,6 @@ from tenacity import (
 
 from autobench.scenario import Scenario
 from autobench.deployment import Deployment
-
 from huggingface_hub.constants import INFERENCE_ENDPOINTS_ENDPOINT
 from huggingface_hub.utils import get_session, hf_raise_for_status, build_hf_headers
 
@@ -42,6 +41,7 @@ class Scheduler:
         self.pending_tasks = asyncio.Queue()
         self.scenerio_group_statuses = []
         self.output_dir = output_dir
+        self.results = []
 
     def fetch_quotas(self):
         """
@@ -162,8 +162,6 @@ class Scheduler:
     async def deploy_and_benchmark(self, scenario_group):
 
         scenerio_group_status = {
-            "instance_id": scenario_group.deployment.instance_config.id,
-            "instance_type": scenario_group.deployment.instance_config.instance_type,
             "status": "failed",
             "error": None,
         }
@@ -181,7 +179,7 @@ class Scheduler:
                 )
 
             # run scenario group
-            benchmark_results = await asyncio.to_thread(scenario_group._run)
+            scenario_group_result = await asyncio.to_thread(scenario_group._run)
             scenerio_group_status["status"] = "success"
             logger.success(
                 f"Benchmark completed for scenerio group on instance: {scenario_group.deployment.instance_config.id}"
@@ -230,8 +228,12 @@ class Scheduler:
                     f"No deployment object created for instance: {scenario_group.deployment.instance_config.id}"
                 )
 
+            # save results
+            self.scenerio_group_statuses.append(scenerio_group_status)  # TO REMOVE
+            scenario_group_result.status = scenerio_group_status
+            self.results.append(scenario_group_result)
+
             await self.update_quota()
-            self.scenerio_group_statuses.append(scenerio_group_status)
 
     def save_deployment_statuses(self):
         results_file = os.path.join(self.output_dir, "deployment_statuses.json")

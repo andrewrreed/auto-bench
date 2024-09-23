@@ -20,8 +20,7 @@ const dataset = JSON.parse(open("{{ data_file }}"))
 
 export function handleSummary(data) {
     return {
-        // stdout: textSummary(data, { indent: " ", enableColors: true }),
-        [filePath]: JSON.stringify(data), //the default data object
+        stdout: JSON.stringify(data), //the default data object
     };
 }
 

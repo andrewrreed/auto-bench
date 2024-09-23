@@ -12,6 +12,7 @@ from loguru import logger
 from autobench.data import BenchmarkDataset
 from autobench.deployment import Deployment
 from autobench.executor import K6Executor
+from autobench.benchmark import ScenarioResult, ScenarioGroupResult
 
 BENCHMARK_DATA_DIR = os.path.join(os.path.dirname(__file__), "benchmark_data")
 
@@ -39,8 +40,6 @@ class Scenario:
             output_dir, deployment.deployment_name, self.scenario_name
         )
 
-        # logger.info(f"Initialized Scenario: {self.scenario_id} for host: {self.host}")
-
     def _prepare_benchmark(self):
         self.executor.update_variables(
             host=self.deployment.endpoint.url,
@@ -66,47 +65,73 @@ class Scenario:
 
         # start a k6 subprocess
         logger.info(f"Running K6 for scenario: {self.scenario_id}")
-        args = f"~/.local/bin/k6-sse run --out json={self.output_dir}/results.json {self.executor.rendered_file}"
+        # args = f"~/.local/bin/k6-sse run --out json={self.output_dir}/results.json {self.executor.rendered_file}"
+        args = f"~/.local/bin/k6-sse run --quiet {self.executor.rendered_file}"
         self.process = subprocess.Popen(
-            args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True
+            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True
         )
-        while buffer := os.read(
-            self.process.stdout.fileno(),
-            2048,
-            # ):  # read the output of the process, don't buffer on new lines
-            #     print(buffer.decode(), end="")
-        ):
-            logger.debug(buffer.decode().strip())
-        self.process.wait()
 
-        logger.info(f"Saving results for scenario: {self.scenario_id}")
-        self.save_scenario_details()
-        self.save_scenario_script()
-        self.save_deployment_details()
+        stdout, stderr = self.process.communicate()
 
-        logger.info(f"Scenario {self.scenario_id} completed")
+        if self.process.returncode != 0:
+            logger.error(
+                f"k6 process failed with return code {self.process.returncode}"
+            )
+            logger.error(f"stderr: {stderr}")
+            return None
 
-    def save_scenario_details(self):
+        # Log the entire output for debugging
+        logger.debug(f"k6 stdout: {stdout}")
 
-        scenario_details_path = f"{self.output_dir}/scenario_details.json"
-
+        # Try to parse the last line as JSON
         try:
-            scenario_details = {
-                "scenario_id": self.scenario_id,
-                "host": self.deployment.endpoint.url,
-                "executor_type": self.executor.name,
-                **self.executor.variables,
-            }
-            with open(scenario_details_path, "w") as f:
-                json.dump(scenario_details, f)
+            result_summary = json.loads(stdout.strip())
+        except json.JSONDecodeError:
+            logger.error("Failed to parse k6 output as JSON")
+            result_summary = None
 
-        except Exception as e:
-            logger.error(f"Error saving scenario details: {str(e)}")
+        return ScenarioResult(
+            scenario_id=self.scenario_id,
+            deployment_id=self.deployment.deployment_id,
+            executor_type=self.executor.name,
+            executor_variables=self.executor.variables,
+            k6_script=self._get_scenario_script(),
+            metrics=result_summary,
+        )
 
-    def save_scenario_script(self):
-        script_path = f"{self.output_dir}/{self.executor.rendered_file.split('/')[-1]}"
-        shutil.copy(self.executor.rendered_file, script_path)
-        logger.debug(f"Scenario script saved to: {script_path}")
+    def _get_scenario_script(self):
+        with open(self.executor.rendered_file, "r") as f:
+            script = f.read()
+        return script
+
+        # logger.info(f"Saving results for scenario: {self.scenario_id}")
+        # self.save_scenario_details()
+        # self.save_scenario_script()
+        # self.save_deployment_details()
+
+        # logger.info(f"Scenario {self.scenario_id} completed")
+
+    # def save_scenario_details(self):
+
+    #     scenario_details_path = f"{self.output_dir}/scenario_details.json"
+
+    #     try:
+    #         scenario_details = {
+    #             "scenario_id": self.scenario_id,
+    #             "host": self.deployment.endpoint.url,
+    #             "executor_type": self.executor.name,
+    #             **self.executor.variables,
+    #         }
+    #         with open(scenario_details_path, "w") as f:
+    #             json.dump(scenario_details, f)
+
+    #     except Exception as e:
+    #         logger.error(f"Error saving scenario details: {str(e)}")
+
+    # def save_scenario_script(self):
+    #     script_path = f"{self.output_dir}/{self.executor.rendered_file.split('/')[-1]}"
+    #     shutil.copy(self.executor.rendered_file, script_path)
+    #     logger.debug(f"Scenario script saved to: {script_path}")
 
     def save_deployment_details(self):
         # Save deployment details
@@ -132,11 +157,18 @@ class ScenarioGroup:
     def __init__(self, deployment: Deployment, scenarios: List[Scenario]):
         self.deployment = deployment
         self.scenarios = scenarios
+        self.scenario_results = []
 
     def _run(self):
         for scenario in self.scenarios:
-            scenario._run()
+            scenario_result = scenario._run()
+            self.scenario_results.append(scenario_result)
             time.sleep(10)
+
+        return ScenarioGroupResult(
+            deployment_id=self.deployment.deployment_id,
+            scenario_results=self.scenario_results,
+        )
 
 
 # class BenchmarkRunner:
