@@ -1,8 +1,6 @@
-import os
 import asyncio
-from typing import List, Dict
+from typing import List
 from loguru import logger
-import json
 from huggingface_hub.errors import InferenceEndpointError
 from huggingface_hub import HfApi
 from tenacity import (
@@ -31,16 +29,13 @@ class Scheduler:
         self,
         scenario_groups: List[ScenarioGroup],
         namespace: str,
-        output_dir: str,
     ):
         self.scenario_groups = scenario_groups
         self.namespace = namespace
         self.quota = None
         self.running_tasks = set()
         self.pending_tasks = asyncio.Queue()
-        self.output_dir = output_dir
         self.results = []
-        self.scenerio_group_statuses = []
 
     def fetch_quotas(self):
         """
@@ -67,7 +62,6 @@ class Scheduler:
         await self.update_quota()
         await self.initialize_tasks()
         await self.process_tasks()
-        self.save_deployment_statuses()
 
     async def update_quota(self):
         logger.info("Updating quota information")
@@ -228,17 +222,10 @@ class Scheduler:
                 )
 
             # save results
-            self.scenerio_group_statuses.append(scenerio_group_status)  # TO REMOVE
-            scenario_group_result.status = scenerio_group_status
+            scenario_group_result.deployment_status = scenerio_group_status
             self.results.append(scenario_group_result)
 
             await self.update_quota()
-
-    def save_deployment_statuses(self):
-        results_file = os.path.join(self.output_dir, "deployment_statuses.json")
-        with open(results_file, "w") as f:
-            json.dump(self.scenerio_group_statuses, f, indent=2)
-        logger.info(f"Deployment results saved to {results_file}")
 
 
 @retry(
