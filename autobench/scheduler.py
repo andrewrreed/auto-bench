@@ -47,14 +47,11 @@ class Scheduler:
         Returns:
             dict: The quotas for the given namespace.
         """
-        logger.info(f"Fetching quotas for namespace: {self.namespace}")
         session = get_session()
         response = session.get(
             f"{INFERENCE_ENDPOINTS_ENDPOINT}/provider/quotas/{self.namespace}",
             headers=build_hf_headers(),
         )
-        hf_raise_for_status(response)
-        logger.success(f"Quotas fetched successfully for namespace: {self.namespace}")
         return response.json()
 
     async def run(self):
@@ -64,15 +61,13 @@ class Scheduler:
         await self.process_tasks()
 
     async def update_quota(self):
-        logger.info("Updating quota information")
+        logger.info("Fetching quota information")
         self.quota = await asyncio.to_thread(self.fetch_quotas)
-        logger.debug(f"Updated quota: {self.quota}")
 
     async def initialize_tasks(self):
         logger.info(f"Initializing tasks for {len(self.scenario_groups)} deployments")
         for scenario_group in self.scenario_groups:
             await self.pending_tasks.put(scenario_group)
-        logger.debug(f"Initialized {self.pending_tasks.qsize()} pending tasks")
 
     async def process_tasks(self):
         logger.info("Starting to process tasks")
@@ -118,7 +113,6 @@ class Scheduler:
             )
             await asyncio.sleep(10)  # Wait before checking again
             await self.update_quota()
-            logger.debug("Sleeping for 10 seconds before next check")
 
     @staticmethod
     def _endpoint_exists(deployment):
@@ -161,14 +155,20 @@ class Scheduler:
 
         try:
             # deploy if needed
-            if not self._is_running(scenario_group.deployment):
+            if not self._endpoint_exists(scenario_group.deployment):
                 logger.info(
-                    f"Deploying endpoint for instance: {scenario_group.deployment.deployment_id}"
+                    f"Creating endpoint for instance: {scenario_group.deployment.deployment_id}"
                 )
                 await asyncio.to_thread(scenario_group.deployment.deploy_endpoint)
+
+            elif not self._is_running(scenario_group.deployment):
+                logger.info(
+                    f"Resuming endpoint for instance: {scenario_group.deployment.deployment_id}"
+                )
+                await asyncio.to_thread(scenario_group.deployment.resume_endpoint)
             else:
                 logger.info(
-                    f"Endpoint exists for instance: {scenario_group.deployment.deployment_id}"
+                    f"Endpoint exists and is already running for instance: {scenario_group.deployment.deployment_id}"
                 )
 
             # run scenario group

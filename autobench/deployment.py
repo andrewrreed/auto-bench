@@ -1,7 +1,7 @@
 import uuid
 from typing import Optional
 
-from huggingface_hub import create_inference_endpoint, whoami, get_inference_endpoint
+from huggingface_hub import create_inference_endpoint, get_inference_endpoint
 from loguru import logger
 
 from autobench.config import DeploymentConfig, TGIConfig, ComputeInstanceConfig
@@ -109,7 +109,7 @@ class Deployment:
             endpoint = create_inference_endpoint(
                 self.deployment_id,
                 repository=self.tgi_config.model_id,
-                namespace=whoami()["name"],
+                namespace=self.deployment_config.namespace,
                 framework="pytorch",
                 task="text-generation",
                 accelerator="gpu",
@@ -137,6 +137,9 @@ class Deployment:
         except Exception as e:
             logger.error(f"Failed to create inference endpoint: {e}")
             raise
+
+    def resume_endpoint(self):
+        self.endpoint.resume().wait()
 
     def endpoint_status(self):
         if hasattr(self, "endpoint"):

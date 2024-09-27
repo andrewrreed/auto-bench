@@ -46,7 +46,6 @@ class Scenario:
     def _run(self):
 
         logger.info(f"Running scenario: {self.scenario_id}")
-        logger.info(f"HAS ENDPOINT?: {hasattr(self.deployment, 'endpoint')}")
 
         if self.deployment.endpoint.status != "running":
             raise Exception(
@@ -81,10 +80,11 @@ class Scenario:
             result_summary = json.loads(stdout.strip())
             scenario_status["status"] = "success"
         except json.JSONDecodeError:
-            logger.error("Failed to parse k6 output as JSON")
             scenario_status["status"] = "failed"
             scenario_status["error"] = "Failed to parse k6 output as JSON"
             result_summary = None
+
+        logger.info(f"Scenario {self.scenario_id} completed")
 
         return ScenarioResult(
             scenario_id=self.scenario_id,

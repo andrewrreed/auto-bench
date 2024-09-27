@@ -43,12 +43,12 @@ class Benchmark:
         output_dir: str = None,
     ):
         self.output_dir = output_dir
-        self.namespace = "andrewrreed"
         self.benchmark_id = str(uuid.uuid4())
         self.benchmark_name = f"benchmark_{self.benchmark_id}"
         self.output_dir = os.path.join(output_dir, self.benchmark_name)
         self.scenarios = scenarios if isinstance(scenarios, list) else [scenarios]
         self.scenario_groups = self._get_scenario_groups(self.scenarios)
+        self.namespace = self._get_namespace()
 
     @staticmethod
     def _get_scenario_groups(scenarios: List[Scenario]):
@@ -72,12 +72,22 @@ class Benchmark:
                     f"You initialized Deployment: {scenario_group.deployment.deployment_name} from an existing endpoint, but it is not running. Please start all _existing_ deployments before running the benchmark."
                 )
 
+    def _get_namespace(self):
+        namespaces = [
+            sg.deployment.deployment_config.namespace for sg in self.scenario_groups
+        ]
+        if len(set(namespaces)) > 1:
+            raise Exception(
+                "Benchmarking deployments across multiplenamespaces is not supported. Please specify a single namespace when creating the benchmark."
+            )
+        else:
+            return namespaces[0]
+
     async def _run_scheduler_async(self):
         self._assert_existing_deployments_running()
         scheduler = Scheduler(
             scenario_groups=self.scenario_groups,
             namespace=self.namespace,
-            # output_dir=self.output_dir,
         )
         await scheduler.run()
         return scheduler

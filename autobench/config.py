@@ -1,6 +1,8 @@
-from dataclasses import dataclass, field
-from typing import Optional
 from loguru import logger
+from typing import Optional
+from dataclasses import dataclass, field
+
+from huggingface_hub import HfApi
 
 
 @dataclass
@@ -57,12 +59,31 @@ class ComputeInstanceConfig:
 class DeploymentConfig:
     tgi_config: TGIConfig
     instance_config: ComputeInstanceConfig
+    namespace: str = None  # user's namespace if not provided
 
     def __post_init__(self):
-        logger.info("Initializing DeploymentConfig")
-        logger.debug(
-            f"DeploymentConfig: TGI model={self.tgi_config.model_id}, Instance={self.instance_config.id}"
-        )
+
+        user_info = HfApi().whoami()
+
+        if self.namespace is None:
+            if user_info["canPay"]:
+                self.namespace = user_info["name"]
+            else:
+                raise Exception(
+                    "You must add billing information to your HuggingFace account to deploy Inference Endpoints."
+                )
+        else:
+            namespaces = {
+                org["name"]: org.get("canPay", False) for org in user_info["orgs"]
+            }
+            if self.namespace not in namespaces.keys():
+                raise Exception(
+                    f"Your user account does not have access to namespace: {self.namespace}."
+                )
+            if not namespaces[self.namespace]:
+                raise Exception(
+                    f"The namespace: {self.namespace} does not have billing enabled. Please add billing information to the namespace."
+                )
 
 
 @dataclass
