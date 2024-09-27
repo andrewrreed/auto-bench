@@ -6,7 +6,7 @@ from transformers import AutoTokenizer
 from autobench.config import DatasetConfig
 from loguru import logger
 
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from autobench.config import ROOT_DIR
 
 
 class BenchmarkDataset:

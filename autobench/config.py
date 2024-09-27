@@ -1,8 +1,9 @@
-from loguru import logger
+import os
 from typing import Optional
+from huggingface_hub import HfApi
 from dataclasses import dataclass, field
 
-from huggingface_hub import HfApi
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 @dataclass

@@ -1,5 +1,8 @@
-from loguru import logger
+import os
 import sys
+from loguru import logger
+
+from autobench.config import ROOT_DIR
 
 
 def setup_logging():
@@ -14,7 +17,10 @@ def setup_logging():
         level=LOG_LEVEL,
     )
     logger.add(
-        "./logs/autobench.log", rotation="10 MB", retention="1 week", level="DEBUG"
+        os.path.join(ROOT_DIR, "logs", "autobench.log"),
+        rotation="10 MB",
+        retention="1 week",
+        level="DEBUG",
     )
 
 
