@@ -4,6 +4,8 @@ from huggingface_hub import HfApi
 from dataclasses import dataclass, field
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BENCHMARK_RESULTS_DIR = os.path.join(ROOT_DIR, "benchmark_results")
+LOG_DIR = os.path.join(ROOT_DIR, "logs")
 K6_BIN = None
 
 

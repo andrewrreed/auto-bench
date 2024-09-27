@@ -15,6 +15,8 @@ from autobench.scenario import (
     ScenarioGroupResult,
 )
 
+from autobench.config import BENCHMARK_RESULTS_DIR
+
 
 @dataclass
 class BenchmarkResult:
@@ -39,32 +41,28 @@ class Benchmark:
 
     def __init__(
         self,
-        scenarios: Union[Scenario, List[Scenario], ScenarioGroup, List[ScenarioGroup]],
+        scenarios: Union[ScenarioGroup, List[ScenarioGroup]],
         output_dir: str = None,
     ):
-        self.output_dir = output_dir
+        self.output_dir = BENCHMARK_RESULTS_DIR if not output_dir else output_dir
         self.benchmark_id = str(uuid.uuid4())
         self.benchmark_name = f"benchmark_{self.benchmark_id}"
-        self.output_dir = os.path.join(output_dir, self.benchmark_name)
+        self.output_dir = os.path.join(self.output_dir, self.benchmark_name)
         self.scenario_groups = self._get_scenario_groups(scenarios)
         self.namespace = self._get_namespace()
 
     def _get_scenario_groups(
         self,
-        scenarios: Union[Scenario, List[Scenario], ScenarioGroup, List[ScenarioGroup]],
+        scenarios: Union[ScenarioGroup, List[ScenarioGroup]],
     ):
-        if isinstance(scenarios, Scenario):
-            return [self._parse_scenario_groups([scenarios])]
-        elif isinstance(scenarios, ScenarioGroup):
+        if isinstance(scenarios, ScenarioGroup):
             return [scenarios]
         elif isinstance(scenarios, list):
-            if all(isinstance(s, Scenario) for s in scenarios):
-                return self._parse_scenario_groups(scenarios)
-            elif all(isinstance(s, ScenarioGroup) for s in scenarios):
+            if all(isinstance(s, ScenarioGroup) for s in scenarios):
                 return scenarios
             else:
                 raise ValueError(
-                    "Invalid list of scenarios or scenario groups provided. Make sure the list is all of the same type."
+                    "Invalid list of scenario groups provided. Make sure the list is all of the same type."
                 )
 
     @staticmethod

@@ -6,7 +6,7 @@ import time
 
 from typing import List
 from dataclasses import dataclass
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 from loguru import logger
 
 from autobench.data import BenchmarkDataset
@@ -119,11 +119,31 @@ class Scenario:
 
 
 class ScenarioGroup:
-    def __init__(self, deployment: Deployment, scenarios: List[Scenario]):
+
+    def __init__(
+        self,
+        deployment: Deployment,
+        benchmark_dataset: BenchmarkDataset,
+        executors: Union[K6Executor, List[K6Executor]],
+    ):
         self.deployment = deployment
-        self.scenarios = scenarios
-        self.scenario_results = []
+        self.benchmark_dataset = benchmark_dataset
+        self.executors = executors if isinstance(executors, list) else [executors]
+        self.scenarios = self._build_scenarios()
         self._validate_scenarios()
+        self.scenario_results = []
+
+    def _build_scenarios(self):
+        scenarios = []
+        for executor in self.executors:
+            scenarios.append(
+                Scenario(
+                    deployment=self.deployment,
+                    benchmark_dataset=self.benchmark_dataset,
+                    executor=executor,
+                )
+            )
+        return scenarios
 
     def _validate_scenarios(self):
         for scenario in self.scenarios:
