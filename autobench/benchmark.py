@@ -20,6 +20,7 @@ from autobench.scenario import (
 class BenchmarkResult:
     benchmark_id: str
     scenario_group_results: List[ScenarioGroupResult]
+    output_dir: str = None
 
 
 class Benchmark:
@@ -93,6 +94,7 @@ class Benchmark:
             benchmark_id=self.benchmark_id, scenario_group_results=scheduler.results
         )
         if self.output_dir:
+            benchmark_result.output_dir = self.output_dir
             self.save_benchmark_results(benchmark_result, self.output_dir)
 
         return benchmark_result
