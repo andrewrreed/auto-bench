@@ -193,11 +193,11 @@ class Scheduler:
         finally:
             if self._is_running(scenario_group.deployment):
                 try:
-                    logger.info(
-                        f"Attempting to delete deployment with ID: {scenario_group.deployment.deployment_id}"
-                    )
                     # TODO: Ideally, if endpoint has failed, retrieve container logs somehow and save them to the deployment_status before deleting
                     if scenario_group.deployment.teardown_on_exit:
+                        logger.info(
+                            f"Attempting to delete deployment with ID: {scenario_group.deployment.deployment_id}"
+                        )
                         await asyncio.sleep(5)
                         await asyncio.to_thread(
                             delete_inference_endpoint,

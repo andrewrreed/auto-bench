@@ -11,11 +11,9 @@ class K6Executor:
         self.name = name
         self.template_name = template_name
         self.variables = {}
-        logger.info(f"Initialized K6Executor: {name} with template: {template_name}")
 
     def update_variables(self, **kwargs):
         self.variables.update(kwargs)
-        logger.debug(f"Updated variables for {self.name}: {kwargs}")
 
     def render_script(self):
         template = ENV.get_template(self.template_name)
@@ -29,11 +27,16 @@ class K6Executor:
             f.write(rendered_script)
 
         self.rendered_file = path
-        logger.info(f"Rendered K6 script to: {path}")
 
 
 class K6ConstantArrivalRateExecutor(K6Executor):
-    def __init__(self, pre_allocated_vus: int, rate_per_second: int, duration: str):
+    def __init__(
+        self,
+        max_new_tokens: int,
+        pre_allocated_vus: int,
+        rate_per_second: int,
+        duration: str,
+    ):
         super().__init__(
             name="constant_arrival_rate", template_name="k6_constant_arrival_rate.js.j2"
         )
@@ -41,4 +44,5 @@ class K6ConstantArrivalRateExecutor(K6Executor):
             "pre_allocated_vus": pre_allocated_vus,
             "rate": rate_per_second,
             "duration": duration,
+            "max_new_tokens": max_new_tokens,
         }

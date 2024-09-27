@@ -15,7 +15,7 @@ const timeToFirstToken = new Trend('time_to_first_token', true);
 const interTokenLatency = new Trend('inter_token_latency', true); // is microseconds
 const tokensReceived = new Trend('tokens_received');
 
-const max_new_tokens = 200;
+const maxNewTokens = {{ max_new_tokens }};
 const dataset = JSON.parse(open("{{ data_file }}"))
 
 export function handleSummary(data) {
@@ -25,13 +25,13 @@ export function handleSummary(data) {
 }
 
 
-export function generate_payload(example, max_new_tokens) {
+export function generate_payload(example, maxNewTokens) {
     const input = example
     return {
         "messages": [{ "role": "user", "content": input }],
         "model": "tgi",
         "temperature": 0,
-        "max_tokens": max_new_tokens,
+        "max_tokens": maxNewTokens,
         "stream": true
     };
 }
@@ -45,7 +45,7 @@ export default function run() {
         "Content-Type": "application/json",
     };
     const query = dataset[scenario.iterationInTest % dataset.length];
-    const payload = JSON.stringify(generate_payload(query, max_new_tokens));
+    const payload = JSON.stringify(generate_payload(query, maxNewTokens));
     const url = `${host}/v1/chat/completions`;
     const params = {
         method: 'POST',
