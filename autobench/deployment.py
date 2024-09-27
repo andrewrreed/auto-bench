@@ -1,7 +1,12 @@
 import uuid
 from typing import Optional
 
-from huggingface_hub import create_inference_endpoint, get_inference_endpoint
+from huggingface_hub import (
+    create_inference_endpoint,
+    get_inference_endpoint,
+    HfApi,
+)
+from huggingface_hub.utils import HfHubHTTPError
 from loguru import logger
 
 from autobench.config import DeploymentConfig, TGIConfig, ComputeInstanceConfig
@@ -27,17 +32,23 @@ class Deployment:
         else:
             self._exists = True
 
-        self.deployment_name = "deployment_" + self.deployment_id
-        logger.info(f"Deployment initialized with name: {self.deployment_name}")
+        # self.deployment_name = "deployment_" + self.deployment_id
+        logger.info(f"Deployment initialized with name: {self.deployment_id}")
 
     @classmethod
     def from_existing_endpoint(
-        cls, endpoint_name: str, teardown_on_exit: Optional[bool] = False
+        cls,
+        endpoint_name: str,
+        namespace: str = None,  # if None, assume user namespace
+        teardown_on_exit: Optional[bool] = False,
     ):
         logger.info(f"Creating Deployment from existing endpoint: {endpoint_name}")
 
         try:
-            endpoint = get_inference_endpoint(endpoint_name)
+            user_info = HfApi().whoami()
+            namespace = user_info["name"] if namespace is None else namespace
+
+            endpoint = get_inference_endpoint(endpoint_name, namespace=namespace)
 
             if endpoint.status == "initializing":
                 logger.info(f"Endpoint {endpoint_name} is initializing, waiting...")
@@ -50,6 +61,11 @@ class Deployment:
                 endpoint.resume().wait()
                 logger.success(f"Endpoint {endpoint_name} is now running")
 
+        except HfHubHTTPError as e:
+            logger.error(
+                f"Make sure you initialize the deployment with the correct endpoint name and associated namespace. Error: {e}"
+            )
+            raise Exception(f"Endpoint {endpoint_name} not found")
         except Exception as e:
             logger.error(f"Failed to get existing endpoint: {e}")
             raise Exception(f"Endpoint {endpoint_name} not found")
@@ -68,6 +84,7 @@ class Deployment:
     def _create_config_from_endpoint(endpoint) -> DeploymentConfig:
 
         endpoint_info = endpoint.raw
+        namespace = endpoint.namespace
 
         tgi_config = TGIConfig(
             model_id=endpoint_info["model"].get("repository", None),
@@ -100,7 +117,7 @@ class Deployment:
             ),  # need to fix this to handle None case
         )
 
-        return DeploymentConfig(tgi_config, compute_instance_config)
+        return DeploymentConfig(tgi_config, compute_instance_config, namespace)
 
     def deploy_endpoint(self):
         logger.info("Starting endpoint deployment process")

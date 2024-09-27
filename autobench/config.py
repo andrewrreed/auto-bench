@@ -16,7 +16,6 @@ class TGIConfig:
     estimated_memory_in_gigabytes: Optional[float] = None
 
     def __post_init__(self):
-        logger.info(f"Initializing TGIConfig for model: {self.model_id}")
         self.env_vars = {
             "MAX_BATCH_PREFILL_TOKENS": str(self.max_batch_prefill_tokens),
             "MAX_INPUT_LENGTH": str(self.max_input_length),
@@ -26,7 +25,6 @@ class TGIConfig:
         }
         if self.quantize:
             self.env_vars["QUANTIZE"] = self.quantize
-        logger.debug(f"TGIConfig environment variables set: {self.env_vars}")
 
 
 @dataclass
@@ -48,12 +46,6 @@ class ComputeInstanceConfig:
     price_per_hour: Optional[float] = None
     num_cpus: Optional[int] = None
 
-    def __post_init__(self):
-        logger.info(f"Initializing ComputeInstanceConfig for instance: {self.id}")
-        logger.debug(
-            f"ComputeInstanceConfig details: vendor={self.vendor}, region={self.region}, accelerator={self.accelerator}"
-        )
-
 
 @dataclass
 class DeploymentConfig:
@@ -65,7 +57,7 @@ class DeploymentConfig:
 
         user_info = HfApi().whoami()
 
-        if self.namespace is None:
+        if self.namespace is None or self.namespace == user_info["name"]:
             if user_info["canPay"]:
                 self.namespace = user_info["name"]
             else:

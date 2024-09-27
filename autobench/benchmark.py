@@ -78,7 +78,7 @@ class Benchmark:
         ]
         if len(set(namespaces)) > 1:
             raise Exception(
-                "Benchmarking deployments across multiplenamespaces is not supported. Please specify a single namespace when creating the benchmark."
+                "Benchmarking deployments across multiple namespaces is not supported. Please ensure all deployments are in the same namespace."
             )
         else:
             return namespaces[0]
