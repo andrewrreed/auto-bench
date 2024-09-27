@@ -5,7 +5,7 @@ import subprocess
 import time
 
 from typing import List
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Dict, Any, Optional
 from loguru import logger
 
@@ -13,7 +13,23 @@ from autobench.data import BenchmarkDataset
 from autobench.deployment import Deployment
 from autobench.executor import K6Executor
 
-BENCHMARK_DATA_DIR = os.path.join(os.path.dirname(__file__), "benchmark_data")
+
+@dataclass
+class ScenarioResult:
+    scenario_id: str
+    deployment_id: str
+    executor_type: str
+    executor_variables: Dict[str, Any]
+    k6_script: str
+    metrics: Dict[str, Any]
+    scenario_status: Optional[Dict[str, Any]] = None
+
+
+@dataclass
+class ScenarioGroupResult:
+    deployment_id: str
+    scenario_results: List[ScenarioResult]
+    deployment_status: Optional[Dict[str, Any]] = None
 
 
 class Scenario:
@@ -126,21 +142,3 @@ class ScenarioGroup:
             deployment_id=self.deployment.deployment_id,
             scenario_results=self.scenario_results,
         )
-
-
-@dataclass
-class ScenarioResult:
-    scenario_id: str
-    deployment_id: str
-    executor_type: str
-    executor_variables: Dict[str, Any]
-    k6_script: str
-    metrics: Dict[str, Any]
-    scenario_status: Optional[Dict[str, Any]] = None
-
-
-@dataclass
-class ScenarioGroupResult:
-    deployment_id: str
-    scenario_results: List[ScenarioResult]
-    deployment_status: Optional[Dict[str, Any]] = None
