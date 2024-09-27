@@ -46,12 +46,29 @@ class Benchmark:
         self.benchmark_id = str(uuid.uuid4())
         self.benchmark_name = f"benchmark_{self.benchmark_id}"
         self.output_dir = os.path.join(output_dir, self.benchmark_name)
-        self.scenarios = scenarios if isinstance(scenarios, list) else [scenarios]
-        self.scenario_groups = self._get_scenario_groups(self.scenarios)
+        self.scenario_groups = self._get_scenario_groups(scenarios)
         self.namespace = self._get_namespace()
 
+    def _get_scenario_groups(
+        self,
+        scenarios: Union[Scenario, List[Scenario], ScenarioGroup, List[ScenarioGroup]],
+    ):
+        if isinstance(scenarios, Scenario):
+            return [self._parse_scenario_groups([scenarios])]
+        elif isinstance(scenarios, ScenarioGroup):
+            return [scenarios]
+        elif isinstance(scenarios, list):
+            if all(isinstance(s, Scenario) for s in scenarios):
+                return self._parse_scenario_groups(scenarios)
+            elif all(isinstance(s, ScenarioGroup) for s in scenarios):
+                return scenarios
+            else:
+                raise ValueError(
+                    "Invalid list of scenarios or scenario groups provided. Make sure the list is all of the same type."
+                )
+
     @staticmethod
-    def _get_scenario_groups(scenarios: List[Scenario]):
+    def _parse_scenario_groups(scenarios: List[Scenario]):
         groups = defaultdict(list)
         for scenario in scenarios:
             groups[scenario.deployment].append(scenario)

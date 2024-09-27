@@ -107,6 +107,14 @@ class ScenarioGroup:
         self.deployment = deployment
         self.scenarios = scenarios
         self.scenario_results = []
+        self._validate_scenarios()
+
+    def _validate_scenarios(self):
+        for scenario in self.scenarios:
+            if scenario.deployment.deployment_id != self.deployment.deployment_id:
+                raise ValueError(
+                    "All scenarios must have the same deployment_id as the scenario group."
+                )
 
     def _run(self):
         for scenario in self.scenarios:
