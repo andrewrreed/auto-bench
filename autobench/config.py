@@ -4,6 +4,7 @@ from huggingface_hub import HfApi
 from dataclasses import dataclass, field
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+K6_BIN = None
 
 
 @dataclass
