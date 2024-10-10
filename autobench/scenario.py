@@ -5,7 +5,7 @@ import subprocess
 import time
 
 from typing import List
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import Dict, Any, Optional, Union
 from loguru import logger
 
@@ -29,6 +29,7 @@ class ScenarioResult:
 class ScenarioGroupResult:
     deployment_id: str
     scenario_results: List[ScenarioResult]
+    deployment_details: Optional[Dict[str, Any]] = None
     deployment_status: Optional[Dict[str, Any]] = None
 
 
@@ -161,4 +162,11 @@ class ScenarioGroup:
         return ScenarioGroupResult(
             deployment_id=self.deployment.deployment_id,
             scenario_results=self.scenario_results,
+            deployment_details={
+                "tgi_config": asdict(self.deployment.tgi_config),
+                "instance_config": asdict(self.deployment.instance_config),
+                "endpoint_details": {
+                    **self.deployment.endpoint.raw,
+                },
+            },
         )

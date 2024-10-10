@@ -1,6 +1,8 @@
+import json
 import asyncio
 from typing import List
 from loguru import logger
+from dataclasses import asdict
 from huggingface_hub.errors import InferenceEndpointError
 from huggingface_hub import HfApi
 from tenacity import (
@@ -10,9 +12,9 @@ from tenacity import (
     retry_if_exception_type,
 )
 
-from autobench.scenario import ScenarioGroup
+from autobench.scenario import ScenarioGroup, ScenarioGroupResult
 from huggingface_hub.constants import INFERENCE_ENDPOINTS_ENDPOINT
-from huggingface_hub.utils import get_session, hf_raise_for_status, build_hf_headers
+from huggingface_hub.utils import get_session, build_hf_headers
 
 
 class Scheduler:
@@ -61,7 +63,6 @@ class Scheduler:
         await self.process_tasks()
 
     async def update_quota(self):
-        logger.info("Fetching quota information")
         self.quota = await asyncio.to_thread(self.fetch_quotas)
 
     async def initialize_tasks(self):
@@ -148,10 +149,7 @@ class Scheduler:
 
     async def deploy_and_benchmark(self, scenario_group):
 
-        scenerio_group_status = {
-            "status": "failed",
-            "error": None,
-        }
+        scenerio_group_status = {"status": "failed", "error": None, "oom": False}
 
         try:
             # deploy if needed
@@ -182,6 +180,21 @@ class Scheduler:
             logger.error(
                 f"Deployment failed for scenerio group instance {scenario_group.deployment.instance_config.id}: {str(e)}"
             )
+            try:
+                logger.info("Attempting to gather logs from failed endpoint.")
+                await asyncio.sleep(60)
+                logs = await asyncio.to_thread(
+                    get_endpoint_logs,
+                    self.namespace,
+                    scenario_group.deployment.deployment_id,
+                )
+                scenerio_group_status["oom"] = "OutOfMemoryError" in logs
+
+            except Exception as e:
+                logger.error(
+                    f"Error fetching logs for instance {scenario_group.deployment.instance_config.id}: {str(e)}"
+                )
+
             scenerio_group_status["error"] = str(e)
 
         except Exception as e:
@@ -220,8 +233,20 @@ class Scheduler:
                 logger.warning(
                     f"No deployment object created for instance: {scenario_group.deployment.instance_config.id}"
                 )
-
             # save results
+            if "scenario_group_result" not in locals():
+                scenario_group_result = ScenarioGroupResult(
+                    deployment_id=scenario_group.deployment.deployment_id,
+                    scenario_results=[],
+                    deployment_details={
+                        "tgi_config": asdict(scenario_group.deployment.tgi_config),
+                        "instance_config": asdict(
+                            scenario_group.deployment.instance_config
+                        ),
+                        "endpoint_details": None,
+                    },
+                )
+
             scenario_group_result.deployment_status = scenerio_group_status
             self.results.append(scenario_group_result)
 
@@ -242,3 +267,32 @@ def delete_inference_endpoint(endpoint_id: str, namespace: str):
     except Exception as e:
         logger.error(f"Failed to delete endpoint {endpoint_id}: {str(e)}")
         raise
+
+
+def get_endpoint_logs(namespace: str, endpoint_name: str):
+    """
+    Fetch logs for a given endpoint.
+
+    Args:
+        namespace (str): The namespace of the endpoint.
+        endpoint_name (str): The name of the endpoint.
+
+    Returns:
+        str or dict: The logs as plain text or parsed JSON if available.
+    """
+    session = get_session()
+    response = session.get(
+        f"{INFERENCE_ENDPOINTS_ENDPOINT}/endpoint/{namespace}/{endpoint_name}/logs",
+        headers=build_hf_headers(),
+    )
+    response.raise_for_status()  # Raise an exception for HTTP errors
+
+    content_type = response.headers.get("Content-Type", "")
+    if "application/json" in content_type:
+        try:
+            return response.json()
+        except json.JSONDecodeError:
+            print("Warning: Content-Type is JSON but couldn't decode JSON content")
+            return response.text
+    else:
+        return response.text

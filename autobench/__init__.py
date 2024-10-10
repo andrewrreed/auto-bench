@@ -8,7 +8,7 @@ from autobench.config import LOG_DIR
 def setup_logging():
 
     LOG_LEVEL = "SUCCESS" if "ipykernel" in sys.modules else "INFO"
-    LOG_LEVEL = "INFO"
+    # LOG_LEVEL = "INFO"
 
     logger.remove()
     logger.add(

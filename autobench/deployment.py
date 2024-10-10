@@ -140,7 +140,7 @@ class Deployment:
                 type="protected",
                 custom_image={
                     "health_route": "/health",
-                    "url": "ghcr.io/huggingface/text-generation-inference:sha-169178b",
+                    "url": "ghcr.io/huggingface/text-generation-inference:2.3.0",
                     "env": self.tgi_config.env_vars,
                 },
             )
@@ -163,4 +163,5 @@ class Deployment:
             deployment = self.endpoint.fetch()
             return deployment.status
         else:
-            raise Exception("Endpoint hasn't been created yet for this deployment")
+            logger.error("Endpoint doesn't exist for this deployment.")
+            return None
