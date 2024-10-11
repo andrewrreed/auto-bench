@@ -31,7 +31,7 @@ def format_viable_instances(viable_instances):
             "gpu_memory_in_gb": v["instance_config"].gpu_memory_in_gb,
             "price_per_hour": v["instance_config"].price_per_hour,
             # tgi configs
-            "max_input_length": v["tgi_config"].max_input_length,
+            "max_input_tokens": v["tgi_config"].max_input_tokens,
             "max_total_tokens": v["tgi_config"].max_total_tokens,
             "max_batch_prefill_tokens": v["tgi_config"].max_batch_prefill_tokens,
             "estimated_memory_in_gigabytes": v[

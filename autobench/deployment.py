@@ -91,8 +91,8 @@ class Deployment:
             max_batch_prefill_tokens=endpoint_info["model"]["image"]["custom"][
                 "env"
             ].get("MAX_BATCH_PREFILL_TOKENS", None),
-            max_input_length=endpoint_info["model"]["image"]["custom"]["env"].get(
-                "MAX_INPUT_LENGTH", None
+            max_input_tokens=endpoint_info["model"]["image"]["custom"]["env"].get(
+                "MAX_INPUT_TOKENS", None
             ),
             max_total_tokens=endpoint_info["model"]["image"]["custom"]["env"].get(
                 "MAX_TOTAL_TOKENS", None

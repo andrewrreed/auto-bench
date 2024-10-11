@@ -2,6 +2,7 @@ import os
 from typing import Optional
 from huggingface_hub import HfApi
 from dataclasses import dataclass, field
+from autobench.compute_manager import ComputeManager
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BENCHMARK_RESULTS_DIR = os.path.join(ROOT_DIR, "benchmark_results")
@@ -13,17 +14,17 @@ K6_BIN = None
 class TGIConfig:
     model_id: str
     max_batch_prefill_tokens: int
-    max_input_length: int
+    max_input_tokens: int
     max_total_tokens: int
-    num_shard: int
-    quantize: str
+    num_shard: Optional[int] = 1
+    quantize: Optional[str] = None
     estimated_memory_in_gigabytes: Optional[float] = None
 
     def __post_init__(self):
         self.env_vars = {
-            "MAX_BATCH_PREFILL_TOKENS": str(self.max_batch_prefill_tokens),
-            "MAX_INPUT_LENGTH": str(self.max_input_length),
+            "MAX_INPUT_TOKENS": str(self.max_input_tokens),
             "MAX_TOTAL_TOKENS": str(self.max_total_tokens),
+            "MAX_BATCH_PREFILL_TOKENS": str(self.max_batch_prefill_tokens),
             "NUM_SHARD": str(self.num_shard),
             "MODEL_ID": "/repository",
         }
@@ -49,6 +50,15 @@ class ComputeInstanceConfig:
     status: Optional[str] = None
     price_per_hour: Optional[float] = None
     num_cpus: Optional[int] = None
+
+    @classmethod
+    def from_id(cls, id: str):
+        cm = ComputeManager()
+        try:
+            option = cm.options[cm.options.id == id].to_dict(orient="records")[0]
+        except IndexError:
+            raise Exception(f"Compute instance with id {id} not found.")
+        return cls(**option)
 
 
 @dataclass
