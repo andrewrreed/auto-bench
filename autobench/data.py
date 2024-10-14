@@ -62,6 +62,8 @@ class BenchmarkDataset:
                 json.dump(dataset["prompt"], f, indent=4)
 
             logger.success(f"Saved benchmark dataset to {self.file_path}")
+        else:
+            logger.info(f"Loaded benchmark dataset from {self.file_path}")
 
 
 def sample_dataset(dataset, n_samples, min_tokens, max_tokens):
