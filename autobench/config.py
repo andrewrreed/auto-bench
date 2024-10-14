@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from autobench.compute_manager import ComputeManager
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(ROOT_DIR, "benchmark_data")
 BENCHMARK_RESULTS_DIR = os.path.join(ROOT_DIR, "benchmark_results")
 LOG_DIR = os.path.join(ROOT_DIR, "logs")
 K6_BIN = None
@@ -107,4 +108,7 @@ class DatasetConfig:
     )  # fixed for consistency
 
     def __post_init__(self):
-        self.file_path = f'benchmark_data/{("__").join(self.name.split("/"))}-{self.split}-{self.min_prompt_length}_min-{self.max_prompt_length}_max.json'
+        self.file_path = os.path.join(
+            DATA_DIR,
+            f'{("__").join(self.name.split("/"))}-{self.split}-{self.min_prompt_length}_min-{self.max_prompt_length}_max.json',
+        )
