@@ -19,12 +19,18 @@ from huggingface_hub.utils import get_session, build_hf_headers
 
 class Scheduler:
     """
-    Instead of taking in `viable_instances`, we take in mapping of {deployment: scenarios}.
-    The scheduler then:
-        - schedules each deployment
-        - deploys if not already running
-        - executes all the scenarios tied to it
+    A scheduler for managing and running scenario groups on Hugging Face inference endpoints.
 
+    This class handles the deployment, benchmarking, and cleanup of scenario groups
+    across multiple inference endpoints, managing quotas and concurrent tasks.
+
+    Attributes:
+        scenario_groups (List[ScenarioGroup]): List of scenario groups to be scheduled and run.
+        namespace (str): The namespace for the Hugging Face inference endpoints.
+        quota (dict): The current quota information for the namespace.
+        running_tasks (set): Set of currently running asyncio tasks.
+        pending_tasks (asyncio.Queue): Queue of pending scenario groups to be processed.
+        results (list): List to store the results of completed scenario group runs.
     """
 
     def __init__(
@@ -32,6 +38,13 @@ class Scheduler:
         scenario_groups: List[ScenarioGroup],
         namespace: str,
     ):
+        """
+        Initialize the Scheduler.
+
+        Args:
+            scenario_groups (List[ScenarioGroup]): List of scenario groups to be scheduled and run.
+            namespace (str): The namespace for the Hugging Face inference endpoints.
+        """
         self.scenario_groups = scenario_groups
         self.namespace = namespace
         self.quota = None
@@ -41,10 +54,7 @@ class Scheduler:
 
     def fetch_quotas(self):
         """
-        Fetch quotas for a given namespace.
-
-        Args:
-            namespace (str): The namespace to fetch quotas for.
+        Fetch quotas for the current namespace.
 
         Returns:
             dict: The quotas for the given namespace.
@@ -57,20 +67,37 @@ class Scheduler:
         return response.json()
 
     async def run(self):
-        logger.info("Starting scheduler run")
+        """
+        Run the scheduler, processing all scenario groups.
+
+        This method initializes the quota, sets up tasks, and processes them until completion.
+        """
+        logger.success("Starting scheduler run")
         await self.update_quota()
         await self.initialize_tasks()
         await self.process_tasks()
 
+        logger.success(
+            "Benchmark run completed successfully! Remember to check your Hugging Face Inference Endpoints UI to ensure all resources have been paused or torn down as expected."
+        )
+
     async def update_quota(self):
+        """Update the current quota information."""
         self.quota = await asyncio.to_thread(self.fetch_quotas)
 
     async def initialize_tasks(self):
+        """Initialize tasks by adding all scenario groups to the pending tasks queue."""
         logger.info(f"Initializing tasks for {len(self.scenario_groups)} deployments")
         for scenario_group in self.scenario_groups:
             await self.pending_tasks.put(scenario_group)
 
     async def process_tasks(self):
+        """
+        Process pending tasks, managing deployments and benchmarks.
+
+        This method continuously checks for available resources and deploys scenario groups
+        when possible, updating quotas and managing running tasks.
+        """
         logger.info("Starting to process tasks")
 
         while not self.pending_tasks.empty() or self.running_tasks:
@@ -117,13 +144,40 @@ class Scheduler:
 
     @staticmethod
     def _endpoint_exists(deployment):
+        """
+        Check if an endpoint exists for the given deployment.
+
+        Args:
+            deployment: The deployment object to check.
+
+        Returns:
+            bool: True if the endpoint exists, False otherwise.
+        """
         return deployment._exists
 
     @staticmethod
     def _is_running(deployment):
+        """
+        Check if the endpoint for the given deployment is running.
+
+        Args:
+            deployment: The deployment object to check.
+
+        Returns:
+            bool: True if the endpoint is running, False otherwise.
+        """
         return deployment.endpoint_status() == "running"
 
     def _can_deploy(self, deployment):
+        """
+        Check if there are enough resources available to deploy the given deployment.
+
+        Args:
+            deployment: The deployment object to check.
+
+        Returns:
+            bool: True if the deployment can be made, False otherwise.
+        """
         instance_id = deployment.instance_config.id
         instance_type = deployment.instance_config.instance_type
         vendor = deployment.instance_config.vendor
@@ -148,6 +202,14 @@ class Scheduler:
         return False
 
     async def deploy_and_benchmark(self, scenario_group):
+        """
+        Deploy an endpoint for the given scenario group and run the benchmark.
+
+        This method handles the deployment, benchmarking, and cleanup process for a single scenario group.
+
+        Args:
+            scenario_group (ScenarioGroup): The scenario group to deploy and benchmark.
+        """
 
         scenerio_group_status = {"status": "failed", "error": None, "oom": False}
 
@@ -206,7 +268,6 @@ class Scheduler:
         finally:
             if self._is_running(scenario_group.deployment):
                 try:
-                    # TODO: Ideally, if endpoint has failed, retrieve container logs somehow and save them to the deployment_status before deleting
                     if scenario_group.deployment.teardown_on_exit:
                         logger.info(
                             f"Attempting to delete deployment with ID: {scenario_group.deployment.deployment_id}"
@@ -260,6 +321,19 @@ class Scheduler:
     reraise=True,
 )
 def delete_inference_endpoint(endpoint_id: str, namespace: str):
+    """
+    Delete an inference endpoint with retry logic.
+
+    This function attempts to delete the specified inference endpoint up to 3 times,
+    with exponential backoff between attempts.
+
+    Args:
+        endpoint_id (str): The ID of the endpoint to delete.
+        namespace (str): The namespace of the endpoint.
+
+    Raises:
+        Exception: If the deletion fails after all retry attempts.
+    """
     api = HfApi()
     try:
         api.delete_inference_endpoint(endpoint_id, namespace=namespace)
@@ -273,12 +347,17 @@ def get_endpoint_logs(namespace: str, endpoint_name: str):
     """
     Fetch logs for a given endpoint.
 
+    This function retrieves the logs for the specified endpoint and attempts to parse them as JSON if possible.
+
     Args:
         namespace (str): The namespace of the endpoint.
         endpoint_name (str): The name of the endpoint.
 
     Returns:
         str or dict: The logs as plain text or parsed JSON if available.
+
+    Raises:
+        requests.exceptions.HTTPError: If the HTTP request to fetch logs fails.
     """
     session = get_session()
     response = session.get(
