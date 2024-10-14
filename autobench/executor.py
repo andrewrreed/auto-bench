@@ -1,6 +1,5 @@
 import tempfile
 
-from loguru import logger
 from jinja2 import Environment, select_autoescape, PackageLoader
 
 ENV = Environment(loader=PackageLoader("autobench"), autoescape=select_autoescape())
