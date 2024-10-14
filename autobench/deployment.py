@@ -13,12 +13,34 @@ from autobench.config import DeploymentConfig, TGIConfig, ComputeInstanceConfig
 
 
 class Deployment:
+    """
+    A class to manage deployment of inference endpoints.
+
+    This class handles the creation, management, and teardown of inference endpoints
+    using the Hugging Face Inference API.
+
+    Attributes:
+        deployment_config (DeploymentConfig): Configuration for the deployment.
+        tgi_config (TGIConfig): Configuration for Text Generation Inference.
+        instance_config (ComputeInstanceConfig): Configuration for the compute instance.
+        deployment_id (str): Unique identifier for the deployment.
+        teardown_on_exit (bool): Whether to tear down the endpoint on exit.
+        _exists (bool): Whether the deployment already exists.
+    """
 
     def __init__(
         self,
         deployment_config: DeploymentConfig,
         teardown_on_exit: Optional[bool] = True,
     ):
+        """
+        Initialize a new Deployment instance.
+
+        Args:
+            deployment_config (DeploymentConfig): Configuration for the deployment.
+            teardown_on_exit (Optional[bool]): Whether to tear down the endpoint on exit.
+                Defaults to True.
+        """
         self.deployment_config = deployment_config
         self.tgi_config = deployment_config.tgi_config
         self.instance_config = deployment_config.instance_config
@@ -42,6 +64,21 @@ class Deployment:
         namespace: str = None,  # if None, assume user namespace
         teardown_on_exit: Optional[bool] = False,
     ):
+        """
+        Create a Deployment instance from an existing endpoint.
+
+        Args:
+            endpoint_name (str): Name of the existing endpoint.
+            namespace (str, optional): Namespace of the endpoint. If None, assumes the user's namespace.
+            teardown_on_exit (Optional[bool]): Whether to tear down the endpoint on exit.
+                Defaults to False.
+
+        Returns:
+            Deployment: A new Deployment instance connected to the existing endpoint.
+
+        Raises:
+            Exception: If the endpoint is not found or cannot be accessed.
+        """
         logger.info(f"Creating Deployment from existing endpoint: {endpoint_name}")
 
         try:
@@ -82,44 +119,65 @@ class Deployment:
 
     @staticmethod
     def _create_config_from_endpoint(endpoint) -> DeploymentConfig:
+        """
+        Create a DeploymentConfig from an existing endpoint.
 
+        Args:
+            endpoint: The existing endpoint object.
+
+        Returns:
+            DeploymentConfig: A configuration object based on the existing endpoint.
+        """
         endpoint_info = endpoint.raw
         namespace = endpoint.namespace
 
+        def get_nested(d, keys, default=None):
+            """Helper function to get nested dictionary values."""
+            for key in keys:
+                if isinstance(d, dict):
+                    d = d.get(key, {})
+                else:
+                    return default
+            return d if d != {} else default
+
+        env = get_nested(endpoint_info, ["model", "image", "custom", "env"], {})
+        compute = get_nested(endpoint_info, ["compute"], {})
+        provider = get_nested(endpoint_info, ["provider"], {})
+
         tgi_config = TGIConfig(
-            model_id=endpoint_info["model"].get("repository", None),
-            max_batch_prefill_tokens=endpoint_info["model"]["image"]["custom"][
-                "env"
-            ].get("MAX_BATCH_PREFILL_TOKENS", None),
-            max_input_tokens=endpoint_info["model"]["image"]["custom"]["env"].get(
-                "MAX_INPUT_TOKENS", None
-            ),
-            max_total_tokens=endpoint_info["model"]["image"]["custom"]["env"].get(
-                "MAX_TOTAL_TOKENS", None
-            ),
-            num_shard=endpoint_info["model"]["image"]["custom"]["env"].get(
-                "NUM_SHARD", 1
-            ),
-            quantize=endpoint_info["model"]["image"]["custom"]["env"].get(
-                "QUANTIZE", None
-            ),
+            model_id=get_nested(endpoint_info, ["model", "repository"]),
+            max_batch_prefill_tokens=env.get("MAX_BATCH_PREFILL_TOKENS"),
+            max_input_tokens=env.get("MAX_INPUT_TOKENS"),
+            max_total_tokens=env.get("MAX_TOTAL_TOKENS"),
+            num_shard=env.get("NUM_SHARD", 1),
+            quantize=env.get("QUANTIZE"),
         )
 
         compute_instance_config = ComputeInstanceConfig(
-            id=endpoint_info["compute"].get("id", None),
-            vendor=endpoint_info["provider"].get("vendor", None),
-            region=endpoint_info["provider"].get("region", None),
-            accelerator=endpoint_info["compute"].get("accelerator", None),
-            instance_type=endpoint_info["compute"].get("instanceType", None),
-            instance_size=endpoint_info["compute"].get("instanceSize", None),
-            num_gpus=int(
-                endpoint_info["compute"].get("instanceSize", None)[-1]
-            ),  # need to fix this to handle None case
+            id=compute.get("id"),
+            vendor=provider.get("vendor"),
+            region=provider.get("region"),
+            accelerator=compute.get("accelerator"),
+            instance_type=compute.get("instanceType"),
+            instance_size=compute.get("instanceSize"),
+            num_gpus=(
+                int(compute.get("instanceSize", "0")[-1])
+                if compute.get("instanceSize")
+                else None
+            ),
         )
 
         return DeploymentConfig(tgi_config, compute_instance_config, namespace)
 
     def deploy_endpoint(self):
+        """
+        Deploy a new inference endpoint.
+
+        This method creates a new inference endpoint using the configured settings.
+
+        Raises:
+            Exception: If the endpoint creation fails.
+        """
         logger.info("Starting endpoint deployment process")
         try:
             logger.info("Creating inference endpoint...")
@@ -156,9 +214,20 @@ class Deployment:
             raise
 
     def resume_endpoint(self):
+        """
+        Resume a paused endpoint.
+
+        This method resumes the endpoint if it was previously paused.
+        """
         self.endpoint.resume().wait()
 
     def endpoint_status(self):
+        """
+        Get the current status of the endpoint.
+
+        Returns:
+            str or None: The status of the endpoint if it exists, None otherwise.
+        """
         if hasattr(self, "endpoint"):
             deployment = self.endpoint.fetch()
             return deployment.status
