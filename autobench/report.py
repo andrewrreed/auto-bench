@@ -1,11 +1,12 @@
 import os
 import json
-
+from dataclasses import asdict
 import pandas as pd
 import matplotlib.pyplot as plt
+from autobench.benchmark import BenchmarkResult
 
 
-def gather_results(scheduler_results_dir: str):
+def gather_results(benchmark_result: BenchmarkResult):
     """
     Gather and process benchmark results from a scheduler run.
 
@@ -34,53 +35,48 @@ def gather_results(scheduler_results_dir: str):
         "tokens_received": {"y": "Count"},
     }
 
-    with open(
-        os.path.join(scheduler_results_dir, "deployment_statuses.json"), "r"
-    ) as f:
-        deployment_statuses = json.load(f)
-
-    deployment_statuses = [
-        status for status in deployment_statuses if status["status"] == "success"
-    ]  # only consider successful deployments
-
     results = []
 
-    for status in deployment_statuses:
-        deployment_name = status["deployment_name"]
-        deployment_dir = os.path.join(scheduler_results_dir, deployment_name)
+    for sgr in benchmark_result.scenario_group_results:
 
-        for scenario_dir in os.listdir(deployment_dir):
-            scenario_path = os.path.join(deployment_dir, scenario_dir)
+        if sgr.deployment_status.get("status") != "success":
+            continue  # only consider successful deployments
 
-            if not os.path.isdir(scenario_path):
-                continue
+        for sr in sgr.scenario_results:
 
-            with open(os.path.join(scenario_path, "summary.json"), "r") as f:
-                result_summary = json.load(f)
-
-            with open(os.path.join(scenario_path, "scenario_details.json"), "r") as f:
-                scenario_details = json.load(f)
+            sr = asdict(sr)
 
             entry = {
-                "instance_id": status["instance_id"],
-                "instance_type": status["instance_type"],
-                "scenario_id": scenario_details["scenario_id"],
-                "executor_type": scenario_details["executor_type"],
-                "pre_allocated_vus": scenario_details["pre_allocated_vus"],
-                "rate": scenario_details["rate"],
-                "duration": scenario_details["duration"],
+                "instance_id": sgr.deployment_details.get("instance_config").get("id"),
+                "instance_type": sgr.deployment_details.get("instance_config").get(
+                    "instance_type"
+                ),
+                "scenario_id": sr.get("scenario_id"),
+                "executor_type": sr.get("executor_type"),
+                "pre_allocated_vus": sr.get("executor_variables").get(
+                    "pre_allocated_vus"
+                ),
+                "rate": sr.get("executor_variables").get("rate"),
+                "duration": sr.get("executor_variables").get("duration"),
+                "test_duration": sr.get("metrics").get("state").get("testRunDurationMs")
+                / 1000.0,
+                "requests_ok": sr.get("metrics")
+                .get("root_group")
+                .get("checks")[0]
+                .get("passes"),
+                "requests_fail": sr.get("metrics")
+                .get("root_group")
+                .get("checks")[0]
+                .get("fails"),
+                "dropped_iterations": (
+                    sr.get("metrics")
+                    .get("dropped_iterations")
+                    .get("values")
+                    .get("count")
+                    if sr.get("metrics").get("dropped_iterations")
+                    else 0
+                ),
             }
-
-            entry["test_duration"] = (
-                result_summary["state"]["testRunDurationMs"] / 1000.0
-            )
-            entry["requests_ok"] = result_summary["root_group"]["checks"][0]["passes"]
-            entry["requests_fail"] = result_summary["root_group"]["checks"][0]["fails"]
-            entry["dropped_iterations"] = (
-                result_summary["metrics"]["dropped_iterations"]["values"]["count"]
-                if "dropped_iterations" in result_summary["metrics"]
-                else 0
-            )
 
             # add up requests_fail and dropped_iterations to get total dropped requests
             entry["dropped_requests"] = (
@@ -93,7 +89,7 @@ def gather_results(scheduler_results_dir: str):
             )
 
             # get p(90) and count values for metrics_to_keep
-            for metric, values in sorted(result_summary["metrics"].items()):
+            for metric, values in sorted(sr.get("metrics").get("metrics").items()):
                 if metric in metrics_to_keep:
                     for value_key, value in values["values"].items():
                         if (
@@ -118,7 +114,7 @@ def gather_results(scheduler_results_dir: str):
     )
 
 
-def plot_metrics(df: pd.DataFrame, file_name: str):
+def plot_metrics(df: pd.DataFrame):
     """
     Plot performance metrics for different compute instance configurations.
 
@@ -129,7 +125,6 @@ def plot_metrics(df: pd.DataFrame, file_name: str):
     Args:
         df (pd.DataFrame): A DataFrame containing the benchmark results.
             Expected columns include 'instance_id', 'rate', and various metric columns.
-        file_name (str): The base name for the output file (without extension).
 
     The function plots the following metrics:
     1. Inter Token Latency (P90)
@@ -188,4 +183,3 @@ def plot_metrics(df: pd.DataFrame, file_name: str):
 
     # show title on top of the figure
     plt.suptitle("Constant Arrival Rate Load Test", fontsize=16)
-    plt.savefig(f"{file_name}.png")
