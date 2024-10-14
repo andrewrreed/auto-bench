@@ -9,6 +9,7 @@ from dataclasses import dataclass, asdict
 from typing import Dict, Any, Optional, Union
 from loguru import logger
 
+from autobench.config import K6_BIN
 from autobench.data import BenchmarkDataset
 from autobench.deployment import Deployment
 from autobench.executor import K6Executor
@@ -100,7 +101,7 @@ class Scenario:
 
         # start a k6 subprocess
         logger.info(f"Running K6 for scenario: {self.scenario_id}")
-        args = f"~/.local/bin/k6-sse run --quiet {self.executor.rendered_file}"
+        args = f"{K6_BIN} run --quiet {self.executor.rendered_file}"
         self.process = subprocess.Popen(
             args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True
         )

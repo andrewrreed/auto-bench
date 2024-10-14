@@ -1,5 +1,4 @@
 build-k6:
-	go clean -modcache
 	mkdir -p /tmp/xk6 && \
 	pushd /tmp/xk6 && \
 	go install go.k6.io/xk6/cmd/xk6@latest && \

@@ -8,7 +8,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(ROOT_DIR, "benchmark_data")
 BENCHMARK_RESULTS_DIR = os.path.join(ROOT_DIR, "benchmark_results")
 LOG_DIR = os.path.join(ROOT_DIR, "logs")
-K6_BIN = None
+K6_BIN = "~/.local/bin/k6-sse"
 
 
 @dataclass
