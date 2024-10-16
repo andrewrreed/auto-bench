@@ -1,27 +1,24 @@
-import os
-import json
 from dataclasses import asdict
 import pandas as pd
+import seaborn as sns
 import matplotlib.pyplot as plt
 from autobench.benchmark import BenchmarkResult
 
 
 def gather_results(benchmark_result: BenchmarkResult):
     """
-    Gather and process benchmark results from a scheduler run.
+    Gather and process benchmark results from a benchmark run.
 
     This function collects performance metrics from successful deployments
     across different scenarios. It processes data from deployment statuses,
     scenario summaries, and scenario details to compile a comprehensive
-    set of results for analysis.
+    set of results for further analysis.
 
     Args:
-        scheduler_results_dir (str): Path to the directory containing
-            the scheduler results.
+        benchmark_result (BenchmarkResult): The result of a benchmark run.
 
     Returns:
-        list: A list of dictionaries, where each dictionary contains
-        processed metrics and details for a specific deployment scenario.
+        pd.DataFrame: A DataFrame containing processed metrics and details for each deployment scenario.
 
     Note:
         This function only considers deployments with a 'success' status.
@@ -114,7 +111,7 @@ def gather_results(benchmark_result: BenchmarkResult):
     )
 
 
-def plot_metrics(df: pd.DataFrame):
+def plot_results(df: pd.DataFrame):
     """
     Plot performance metrics for different compute instance configurations.
 
@@ -136,10 +133,15 @@ def plot_metrics(df: pd.DataFrame):
 
     The resulting plot is saved as a PNG file.
     """
+
+    sns.set_style("darkgrid")
+
     vus_param = "rate"
     fig, axs = plt.subplots(3, 2, figsize=(15, 20))
-    fig.tight_layout(pad=6.0)
-    fig.subplots_adjust(hspace=0.4, wspace=0.2, bottom=0.15)
+    fig.tight_layout(pad=5.0)
+    fig.subplots_adjust(
+        hspace=0.2, wspace=0.2, top=0.5, bottom=0.05, right=0.9
+    )  # Adjusted top and bottom
 
     names = sorted(df["instance_id"].unique())
     metrics = {
@@ -152,11 +154,11 @@ def plot_metrics(df: pd.DataFrame):
     }
     titles = [
         "Inter Token Latency P90 (lower is better)",
-        "TTFT P90 (lower is better)",
+        "Time to First Token P90 (lower is better)",
         "End to End Latency P90 (lower is better)",
         "Request Output Throughput P90 (higher is better)",
-        "Successful requests (higher is better)",
-        "Error rate (lower is better)",
+        "Successful Requests (higher is better)",
+        "Error Rate (lower is better)",
     ]
     labels = ["Time (ms)", "Time (ms)", "Time (ms)", "Tokens/s", "Count", "%"]
 
@@ -171,15 +173,29 @@ def plot_metrics(df: pd.DataFrame):
                 label=f"{name}",
                 # color=colors[i],
             )
-            ax.set_title(title)
+            ax.set_title(title, fontweight="heavy")
             ax.tick_params(axis="x", rotation=0)
             ax.set_ylabel(label)
             ax.set_xlabel("Requests/s")
 
             # Add grid lines for better readability
             ax.grid(True, which="both", axis="y", linestyle="--", linewidth=0.5)
-            ax.set_axisbelow(True)  # Ensure grid lines are below the bars
-            ax.legend(title="Instance", loc="upper right")
+            ax.set_axisbelow(True)
 
-    # show title on top of the figure
-    plt.suptitle("Constant Arrival Rate Load Test", fontsize=16)
+    # Create a single legend for the entire figure
+    handles, labels = axs[0, 0].get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels,
+        title="Instance",
+        loc="upper center",
+        ncol=len(names),
+        bbox_to_anchor=(0.5, 0.95),  # Adjusted y-coordinate
+        bbox_transform=fig.transFigure,  # Use figure coordinates
+    )
+
+    # Show title on top of the figure
+    plt.suptitle("Constant Arrival Rate Load Test", fontsize=24, y=0.97)
+
+    # Adjust the position of the subplots to make room for the legend
+    plt.subplots_adjust(top=0.9)  # Move subplots down
