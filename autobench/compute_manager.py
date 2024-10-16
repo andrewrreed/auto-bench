@@ -1,7 +1,7 @@
 from loguru import logger
 import requests
 import pandas as pd
-from typing import Dict, List, Literal
+from typing import List, Literal
 from urllib.parse import urlencode
 
 
