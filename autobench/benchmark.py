@@ -8,6 +8,7 @@ from collections import defaultdict
 import asyncio
 import nest_asyncio
 from autobench.scheduler import Scheduler
+from huggingface_hub import get_token
 
 from autobench.scenario import (
     Scenario,
@@ -119,6 +120,7 @@ class Benchmark:
             scenarios (Union[ScenarioGroup, List[ScenarioGroup]]): Scenario(s) to be run.
             output_dir (str, optional): Directory to save benchmark results. Defaults to BENCHMARK_RESULTS_DIR.
         """
+        self._validate_token()
         self.output_dir = BENCHMARK_RESULTS_DIR if not output_dir else output_dir
         self.benchmark_id = str(uuid.uuid4())
         self.benchmark_name = f"benchmark_{self.benchmark_id}"
@@ -204,6 +206,23 @@ class Benchmark:
             )
         else:
             return namespaces[0]
+
+    def _validate_token(self):
+        """
+        Validate the Hugging Face token and set it as an environment variable.
+
+        Raises:
+            Exception: If the token is not set.
+        """
+
+        token = get_token()
+
+        if not token:
+            raise Exception(
+                "Hugging Face token not set. You must first authenticate your Hugging Face account.\nSee the docs here: https://huggingface.co/docs/huggingface_hub/quick-start#login"
+            )
+        elif not os.environ.get("HF_TOKEN"):
+            os.environ["HF_TOKEN"] = token
 
     async def _run_scheduler_async(self) -> Scheduler:
         """
