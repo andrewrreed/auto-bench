@@ -35,7 +35,8 @@ class K6ConstantArrivalRateExecutor(K6Executor):
         pre_allocated_vus: int,
         rate_per_second: int,
         duration: str,
-    ):
+        include_file: str = 'main.js.j2',
+            ):
         super().__init__(
             name="constant_arrival_rate", template_name="k6_constant_arrival_rate.js.j2"
         )
@@ -44,7 +45,8 @@ class K6ConstantArrivalRateExecutor(K6Executor):
             "rate": rate_per_second,
             "duration": duration,
             "max_new_tokens": max_new_tokens,
-        }
+            "include_file": include_file,
+            }
 
 
 class K6ConstantArrivalRateExecutorEncoder(K6Executor):
@@ -53,6 +55,7 @@ class K6ConstantArrivalRateExecutorEncoder(K6Executor):
             pre_allocated_vus: int,
             rate_per_second: int,
             duration: str,
+            include_file: str = 'classification.js.j2',
             ):
         super().__init__(
                 name="constant_arrival_rate", template_name="k6_constant_arrival_rate.js.j2"
@@ -61,4 +64,5 @@ class K6ConstantArrivalRateExecutorEncoder(K6Executor):
             "pre_allocated_vus": pre_allocated_vus,
             "rate": rate_per_second,
             "duration": duration,
+            "include_file": include_file,
             }

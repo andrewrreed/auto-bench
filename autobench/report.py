@@ -25,12 +25,14 @@ def gather_results(benchmark_result: BenchmarkResult):
     """
 
     metrics_to_keep = {
-        "inter_token_latency": {"y": "Time (ms)"},
-        "end_to_end_latency": {"y": "Time (ms)"},
-        "time_to_first_token": {"y": "Time (ms)"},
+        "iterations": {"y": "Total"},
+        "http_request_duration": {"y": "Time (ms)"},
         "tokens_throughput": {"y": "Tokens/s"},
-        "tokens_received": {"y": "Count"},
-    }
+        "response_latency": {"y": "Time (ms)"},
+        # "accuracy_percentage": {"y": "Percentage (%)"},
+        "classification_accuracy": {"y": "Correct Count (n)"},
+        "tokens_per_second": {"y": "Tokens (n)"},
+        }
 
     results = []
 
