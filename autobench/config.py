@@ -1,7 +1,9 @@
 import os
-from typing import Optional
-from huggingface_hub import HfApi
 from dataclasses import dataclass, field
+from typing import Dict, Literal, Optional
+
+from huggingface_hub import HfApi
+
 from autobench.compute_manager import ComputeManager
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -12,8 +14,16 @@ K6_BIN = "~/.local/bin/k6-sse"
 
 
 @dataclass
-class TGIConfig:
+class DockerConfig:
+    docker_path: str
     model_id: str
+    task: str
+    env_vars: Dict[str, str] = field(default_factory=dict)
+
+
+class TGIConfig(DockerConfig):
+    docker_path = "ghcr.io/huggingface/text-generation-inference:2.3.0"
+    task = "text-generation"
     max_batch_prefill_tokens: int
     max_input_tokens: int
     max_total_tokens: int
@@ -31,6 +41,44 @@ class TGIConfig:
         }
         if self.quantize:
             self.env_vars["QUANTIZE"] = self.quantize
+
+
+class InfinityConfig(DockerConfig):
+    def __init__(
+            self,
+            docker_path: str,
+            model_id: str,
+            task: str,
+            compile: Optional[Literal['true', 'false']],
+            better_transformer: Optional[Literal['true', 'false']],
+            engine: Literal["torch", "optimum", "ctranslate2", "cpu", "neuron"] = "torch",
+            batch_size: int = 16,
+            dtype: Literal["auto", "float16", "float32", "bfloat16", "int8", "fp8"] = "auto",
+            embedding_dtype: Literal[
+                "float32", "float16", "bfloat16", "int8", "uint8", "binary", "ubinary"] = "float32",
+            pooling_method: Literal["auto", "mean", "cls"] = "auto"
+            ):
+        super().__init__(docker_path=docker_path, model_id=model_id, env_vars={}, task=task)
+
+        # Set additional InfinityConfig-specific attributes
+        self.engine = engine
+        self.batch_size = batch_size
+        self.dtype = dtype
+        self.embedding_dtype = embedding_dtype
+        self.pooling_method = pooling_method
+        self.compile = compile
+        self.better_transformer = better_transformer
+
+        # Infer env_vars from the provided parameters
+        self.env_vars = {
+            "ENGINE": self.engine,
+            "BATCH_SIZE": str(self.batch_size),
+            "DTYPE": self.dtype,
+            "EMBEDDING_DTYPE": self.embedding_dtype,
+            "POOLING_METHOD": self.pooling_method,
+            "COMPILE": self.compile,
+            "BETTERTRANSFORMER": self.better_transformer,
+            }
 
 
 @dataclass
@@ -51,6 +99,7 @@ class ComputeInstanceConfig:
     status: Optional[str] = None
     price_per_hour: Optional[float] = None
     num_cpus: Optional[int] = None
+    quota: Dict[str, int] = field(default_factory=dict)
 
     @classmethod
     def from_id(cls, id: str):
@@ -64,7 +113,7 @@ class ComputeInstanceConfig:
 
 @dataclass
 class DeploymentConfig:
-    tgi_config: TGIConfig
+    docker_config: DockerConfig
     instance_config: ComputeInstanceConfig
     namespace: str = None  # user's namespace if not provided
 
@@ -77,38 +126,35 @@ class DeploymentConfig:
                 self.namespace = user_info["name"]
             else:
                 raise Exception(
-                    "You must add billing information to your HuggingFace account to deploy Inference Endpoints."
-                )
+                        "You must add billing information to your HuggingFace account to deploy Inference Endpoints."
+                        )
         else:
             namespaces = {
                 org["name"]: org.get("canPay", False) for org in user_info["orgs"]
-            }
+                }
             if self.namespace not in namespaces.keys():
                 raise Exception(
-                    f"Your user account does not have access to namespace: {self.namespace}."
-                )
+                        f"Your user account does not have access to namespace: {self.namespace}."
+                        )
             if not namespaces[self.namespace]:
                 raise Exception(
-                    f"The namespace: {self.namespace} does not have billing enabled. Please add billing information to the namespace."
-                )
+                        f"The namespace: {self.namespace} does not have billing enabled. Please add billing information to the namespace."
+                        )
 
 
 @dataclass
 class DatasetConfig:
-
+    tokenizer_name: str
     min_prompt_length: int = 50
     max_prompt_length: int = 500
     file_path: str = field(init=False)
 
     # hardcoded for now
-    split: str = field(default="train_sft", init=False)
-    name: str = field(default="HuggingFaceH4/ultrachat_200k", init=False)
-    tokenizer_name: str = field(
-        default="meta-llama/Meta-Llama-3-8B", init=False
-    )  # fixed for consistency
+    split: str = field(default="all", init=False)
+    name: str = field(default="tyqiangz/multilingual-sentiments", init=False)
 
     def __post_init__(self):
         self.file_path = os.path.join(
-            DATA_DIR,
-            f'{("__").join(self.name.split("/"))}-{self.split}-{self.min_prompt_length}_min-{self.max_prompt_length}_max.json',
-        )
+                DATA_DIR,
+                f'{("__").join(self.name.split("/"))}-{self.split}-{self.min_prompt_length}_min-{self.max_prompt_length}_max.json',
+                )

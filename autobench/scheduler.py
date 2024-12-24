@@ -300,7 +300,7 @@ class Scheduler:
                     deployment_id=scenario_group.deployment.deployment_id,
                     scenario_results=[],
                     deployment_details={
-                        "tgi_config": asdict(scenario_group.deployment.tgi_config),
+                        "tgi_config": asdict(scenario_group.deployment.docker_config),
                         "instance_config": asdict(
                             scenario_group.deployment.instance_config
                         ),

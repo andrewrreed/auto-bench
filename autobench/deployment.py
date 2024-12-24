@@ -9,7 +9,7 @@ from huggingface_hub import (
 from huggingface_hub.utils import HfHubHTTPError
 from loguru import logger
 
-from autobench.config import DeploymentConfig, TGIConfig, ComputeInstanceConfig
+from autobench.config import DeploymentConfig, DockerConfig, ComputeInstanceConfig
 
 
 class Deployment:
@@ -21,7 +21,7 @@ class Deployment:
 
     Attributes:
         deployment_config (DeploymentConfig): Configuration for the deployment.
-        tgi_config (TGIConfig): Configuration for Text Generation Inference.
+        docker_config (DockerConfig): Configuration for the Inference Endpoint Docker Image
         instance_config (ComputeInstanceConfig): Configuration for the compute instance.
         deployment_id (str): Unique identifier for the deployment.
         teardown_on_exit (bool): Whether to tear down the endpoint on exit.
@@ -42,14 +42,12 @@ class Deployment:
                 Defaults to True.
         """
         self.deployment_config = deployment_config
-        self.tgi_config = deployment_config.tgi_config
+        self.docker_config = deployment_config.docker_config
         self.instance_config = deployment_config.instance_config
         self._exists = False
 
         if not getattr(self, "_from_factory", False):
-            self.deployment_id = str(uuid.uuid4())[
-                :-4
-            ]  # truncated due to IE endpoint naming restrictions
+            self.deployment_id = 'ab-'+str(uuid.uuid4())[:-7]  # truncated due to IE endpoint naming restrictions
             self.teardown_on_exit = teardown_on_exit
         else:
             self._exists = True
@@ -140,18 +138,24 @@ class Deployment:
                     return default
             return d if d != {} else default
 
-        env = get_nested(endpoint_info, ["model", "image", "custom", "env"], {})
         compute = get_nested(endpoint_info, ["compute"], {})
         provider = get_nested(endpoint_info, ["provider"], {})
 
-        tgi_config = TGIConfig(
-            model_id=get_nested(endpoint_info, ["model", "repository"]),
-            max_batch_prefill_tokens=env.get("MAX_BATCH_PREFILL_TOKENS"),
-            max_input_tokens=env.get("MAX_INPUT_TOKENS"),
-            max_total_tokens=env.get("MAX_TOTAL_TOKENS"),
-            num_shard=env.get("NUM_SHARD", 1),
-            quantize=env.get("QUANTIZE"),
-        )
+        model_id = get_nested(endpoint_info, ["model", "repository"], '')
+        task = get_nested(endpoint_info, ["model", "task"], '')
+        docker_path = get_nested(endpoint_info, ['model', 'image', 'custom', 'url'], '')
+        env = get_nested(endpoint_info, ["model", "env"], {})
+
+        # TODO update this to work for Docker Config
+        docker_config = DockerConfig(model_id=model_id, task=task, docker_path=docker_path, env_vars=env)
+        # tgi_config = TGIConfig(
+        #     model_id=get_nested(endpoint_info, ["model", "repository"]),
+        #     max_batch_prefill_tokens=env.get("MAX_BATCH_PREFILL_TOKENS"),
+        #     max_input_tokens=env.get("MAX_INPUT_TOKENS"),
+        #     max_total_tokens=env.get("MAX_TOTAL_TOKENS"),
+        #     num_shard=env.get("NUM_SHARD", 1),
+        #     quantize=env.get("QUANTIZE"),
+        # )
 
         compute_instance_config = ComputeInstanceConfig(
             id=compute.get("id"),
@@ -167,7 +171,7 @@ class Deployment:
             ),
         )
 
-        return DeploymentConfig(tgi_config, compute_instance_config, namespace)
+        return DeploymentConfig(docker_config, compute_instance_config, namespace)
 
     def deploy_endpoint(self):
         """
@@ -183,10 +187,10 @@ class Deployment:
             logger.info("Creating inference endpoint...")
             endpoint = create_inference_endpoint(
                 self.deployment_id,
-                repository=self.tgi_config.model_id,
+                repository=self.docker_config.model_id,
                 namespace=self.deployment_config.namespace,
                 framework="pytorch",
-                task="text-generation",
+                task=self.docker_config.task,
                 accelerator="gpu",
                 vendor=self.instance_config.vendor,
                 region=self.instance_config.region,
@@ -198,8 +202,8 @@ class Deployment:
                 type="protected",
                 custom_image={
                     "health_route": "/health",
-                    "url": "ghcr.io/huggingface/text-generation-inference:2.3.0",
-                    "env": self.tgi_config.env_vars,
+                    "url": self.docker_config.docker_path,
+                    "env": self.docker_config.env_vars,
                 },
             )
 

@@ -45,3 +45,20 @@ class K6ConstantArrivalRateExecutor(K6Executor):
             "duration": duration,
             "max_new_tokens": max_new_tokens,
         }
+
+
+class K6ConstantArrivalRateExecutorEncoder(K6Executor):
+    def __init__(
+            self,
+            pre_allocated_vus: int,
+            rate_per_second: int,
+            duration: str,
+            ):
+        super().__init__(
+                name="constant_arrival_rate", template_name="k6_constant_arrival_rate.js.j2"
+                )
+        self.variables = {
+            "pre_allocated_vus": pre_allocated_vus,
+            "rate": rate_per_second,
+            "duration": duration,
+            }
