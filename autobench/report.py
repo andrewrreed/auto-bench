@@ -1,11 +1,30 @@
+from typing import Dict
 from dataclasses import asdict
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from autobench.benchmark import BenchmarkResult
 
+CLASSIFICAION_METRICS = {
+    "iterations": {"y": "Total"},
+    "http_request_duration": {"y": "Time (ms)"},
+    "tokens_throughput": {"y": "Tokens/s"},
+    "response_latency": {"y": "Time (ms)"},
+    # "accuracy_percentage": {"y": "Percentage (%)"},
+    "classification_accuracy": {"y": "Correct Count (n)"},
+    "tokens_per_second": {"y": "Tokens (n)"},
+    }
 
-def gather_results(benchmark_result: BenchmarkResult):
+DEFAULT_METRICS = {
+        "inter_token_latency": {"y": "Time (ms)"},
+        "end_to_end_latency": {"y": "Time (ms)"},
+        "time_to_first_token": {"y": "Time (ms)"},
+        "tokens_throughput": {"y": "Tokens/s"},
+        "tokens_received": {"y": "Count"},
+    }
+
+
+def gather_results(benchmark_result: BenchmarkResult, metrics_to_keep: Dict[str, Dict[str, str]] = None):
     """
     Gather and process benchmark results from a benchmark run.
 
@@ -16,6 +35,7 @@ def gather_results(benchmark_result: BenchmarkResult):
 
     Args:
         benchmark_result (BenchmarkResult): The result of a benchmark run.
+        metrics_to_keep (Dict[str, Dict[str, str]], optional): A dictionary of which metrics to keep.
 
     Returns:
         pd.DataFrame: A DataFrame containing processed metrics and details for each deployment scenario.
@@ -24,15 +44,8 @@ def gather_results(benchmark_result: BenchmarkResult):
         This function only considers deployments with a 'success' status.
     """
 
-    metrics_to_keep = {
-        "iterations": {"y": "Total"},
-        "http_request_duration": {"y": "Time (ms)"},
-        "tokens_throughput": {"y": "Tokens/s"},
-        "response_latency": {"y": "Time (ms)"},
-        # "accuracy_percentage": {"y": "Percentage (%)"},
-        "classification_accuracy": {"y": "Correct Count (n)"},
-        "tokens_per_second": {"y": "Tokens (n)"},
-        }
+    if metrics_to_keep is None:
+        metrics_to_keep = DEFAULT_METRICS
 
     results = []
 
