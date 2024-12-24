@@ -2,12 +2,13 @@ import os
 import json
 import random
 import datasets
+import pandas as pd
 from transformers import AutoTokenizer
 from autobench.config import DatasetConfig
 from loguru import logger
 
 
-class BenchmarkDataset:
+class BaseDataset:
     """
     A class to build and manage datasets for benchmarking.
 
@@ -22,7 +23,7 @@ class BenchmarkDataset:
 
     def __init__(self, data_config: DatasetConfig):
         """
-        Initializes the BenchmarkDataset with the given configuration.
+        Initializes the BaseDataset with the given configuration.
 
         Args:
             data_config (DatasetConfig): Configuration for the dataset.
@@ -30,40 +31,75 @@ class BenchmarkDataset:
         self.data_config = data_config
         self.file_path = data_config.file_path
         os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
-        self.build_benchmark_dataset()
+        self.build_dataset()
 
-    def build_benchmark_dataset(self):
-        """
-        Builds the benchmark dataset if it doesn't already exist.
-
-        This method loads the dataset, tokenizes it, filters it based on token
-        length, samples a subset, and saves it to a local file.
-        """
+    def build_dataset(self):
         if not os.path.exists(self.file_path):
-            dataset = datasets.load_dataset(
-                self.data_config.name, split=self.data_config.split
-            )
+            dataset = self.load_data()
             tokenizer = AutoTokenizer.from_pretrained(self.data_config.tokenizer_name)
 
-            dataset = dataset.map(
-                lambda example: {
-                    "num_tokens": len(tokenizer.encode(example["prompt"]))
-                },
-                num_proc=8,
-            )
-            dataset = sample_dataset(
-                dataset=dataset,
-                n_samples=2500,
-                min_tokens=self.data_config.min_prompt_length,
-                max_tokens=self.data_config.max_prompt_length,
-            )
+            dataset = self.tokenize_and_filter(dataset, tokenizer)
+            dataset = self.sample_dataset(dataset)
+
+            processed_data = self.process_data(dataset)
 
             with open(self.file_path, "w") as f:
-                json.dump(dataset["prompt"], f, indent=4)
+                json.dump(processed_data, f, indent=4)
 
-            logger.success(f"Saved benchmark dataset to {self.file_path}")
+            logger.success(f"Saved dataset to {self.file_path}")
         else:
-            logger.info(f"Loaded benchmark dataset from {self.file_path}")
+            logger.info(f"Loaded dataset from {self.file_path}")
+
+    def load_data(self):
+        return datasets.load_dataset(
+                self.data_config.name, split=self.data_config.split
+                )
+
+    def tokenize_and_filter(self, dataset, tokenizer):
+        return dataset.map(
+                lambda example: {
+                    "num_tokens": len(tokenizer.encode(example[self.data_config.input_key]))
+                    },
+                num_proc=8,
+                )
+
+    def sample_dataset(self, dataset):
+        return sample_dataset(
+                dataset=dataset,
+                n_samples=self.data_config.n_samples,
+                min_tokens=self.data_config.min_prompt_length,
+                max_tokens=self.data_config.max_prompt_length,
+                )
+
+    def process_data(self, dataset):
+        # Default processing, can be overridden
+        return dataset[self.data_config.input_key]
+
+
+class BenchmarkDataset(BaseDataset):
+    def __init__(self, data_config):
+        super().__init__(data_config)
+
+    def process_data(self, dataset):
+        # Specific to BenchmarkDataset
+        return dataset["prompt"]
+
+
+class ClassificationDataset(BaseDataset):
+    def __init__(self, data_config):
+        super().__init__(data_config)
+
+    def load_data(self):
+        return datasets.load_dataset(
+                self.data_config.name, self.data_config.split, split='train'
+                )
+
+    def process_data(self, dataset):
+        df = pd.DataFrame(dataset)
+        label_mapping = {0: "positive", 1: "neutral", 2: "negative"}
+        df['label'] = df['label'].map(label_mapping).fillna("unknown")
+        df = df[['text', 'label']]
+        return df.to_dict('records')
 
 
 def sample_dataset(dataset, n_samples, min_tokens, max_tokens):
