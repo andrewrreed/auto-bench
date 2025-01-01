@@ -100,6 +100,7 @@ class Scenario:
 
         # start a k6 subprocess
         logger.info(f"Running K6 for scenario: {self.scenario_id}")
+        logger.info(f"K6 File is {self.executor.rendered_file}")
         args = f"{K6_BIN} run --quiet {self.executor.rendered_file}"
         self.process = subprocess.Popen(
             args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True
@@ -231,7 +232,7 @@ class ScenarioGroup:
             deployment_id=self.deployment.deployment_id,
             scenario_results=self.scenario_results,
             deployment_details={
-                "tgi_config": asdict(self.deployment.tgi_config),
+                "tgi_config": asdict(self.deployment.docker_config),
                 "instance_config": asdict(self.deployment.instance_config),
                 "endpoint_details": {
                     **self.deployment.endpoint.raw,
